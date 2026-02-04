@@ -2,6 +2,12 @@ use crate::error::{Error, Result};
 
 pub struct SecurityManager;
 
+impl Default for SecurityManager {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl SecurityManager {
     pub fn new() -> Self {
         Self

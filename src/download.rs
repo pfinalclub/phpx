@@ -8,6 +8,12 @@ pub struct Downloader {
     client: Client,
 }
 
+impl Default for Downloader {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Downloader {
     pub fn new() -> Self {
         Self {

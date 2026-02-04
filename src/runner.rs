@@ -31,6 +31,7 @@ impl Runner {
         })
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub async fn run_tool(
         &mut self,
         tool_identifier: &str,
@@ -295,5 +296,23 @@ impl Runner {
         }
 
         Ok(())
+    }
+
+    pub async fn run_tool_with_options(
+        &mut self,
+        tool_identifier: &str,
+        args: &[String],
+        options: &crate::ToolOptions,
+    ) -> Result<()> {
+        self.run_tool(
+            tool_identifier,
+            args,
+            options.clear_cache,
+            options.no_cache,
+            options.skip_verify,
+            options.php.as_ref(),
+            options.no_local,
+        )
+        .await
     }
 }

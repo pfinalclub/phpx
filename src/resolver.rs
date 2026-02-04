@@ -47,6 +47,12 @@ struct GitHubAsset {
 
 pub struct ToolResolver;
 
+impl Default for ToolResolver {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ToolResolver {
     pub fn new() -> Self {
         Self
@@ -139,16 +145,15 @@ impl ToolResolver {
 
         let version_info = &packagist_response.package.versions[&version];
 
-        // 检查是否有 phar 文件下载链接
+        // 检查是否有 zip 文件下载链接
         if version_info.dist.dist_type != "zip" {
             return Err(Error::ToolNotFound(
                 "Only zip distributions are supported".to_string(),
             ));
         }
 
-        // 对于 PHP 工具，通常需要从 GitHub Releases 或其他源获取 .phar 文件
-        // 这里我们尝试从常见的 PHP 工具发布模式推断下载 URL
-        let download_url = self.infer_phar_download_url(&identifier.name, &version);
+        // 使用 Packagist 提供的下载 URL
+        let download_url = version_info.dist.url.clone();
 
         Ok(ToolInfo {
             name: identifier.name.clone(),
@@ -240,13 +245,7 @@ impl ToolResolver {
         Err(Error::ToolNotFound(identifier.name.clone()))
     }
 
-    fn infer_phar_download_url(&self, tool_name: &str, version: &str) -> String {
-        // 常见的 PHP 工具发布模式
-        format!(
-            "https://github.com/{}/{}/releases/download/{}/{}.phar",
-            tool_name, tool_name, version, tool_name
-        )
-    }
+
 
     fn find_matching_version(
         &self,

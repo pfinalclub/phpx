@@ -1,5 +1,6 @@
-use crate::error::{Error, Result};
+use crate::error::Result;
 use crate::runner::Runner;
+use crate::ToolOptions;
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
 
@@ -42,7 +43,7 @@ pub struct Cli {
     pub no_local: bool,
 }
 
-#[derive(Subcommand)]
+#[derive(Subcommand, Debug)]
 pub enum Commands {
     /// Manage cache
     Cache {
@@ -60,7 +61,7 @@ pub enum Commands {
     SelfUpdate,
 }
 
-#[derive(Subcommand)]
+#[derive(Subcommand, Debug)]
 pub enum CacheCommands {
     /// Clean cache for a specific tool or all tools
     Clean { tool: Option<String> },
@@ -72,7 +73,7 @@ pub enum CacheCommands {
     Info { tool: String },
 }
 
-#[derive(Subcommand)]
+#[derive(Subcommand, Debug)]
 pub enum ConfigCommands {
     /// Get a configuration value
     Get { key: String },
@@ -133,6 +134,7 @@ impl Cli {
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     async fn run_tool(
         &self,
         tool: &str,
@@ -143,27 +145,25 @@ impl Cli {
         php: Option<&PathBuf>,
         no_local: bool,
     ) -> Result<()> {
+        let options = ToolOptions {
+            clear_cache,
+            no_cache,
+            skip_verify,
+            php: php.cloned(),
+            no_local,
+        };
+        
         tracing::info!(
             "Running tool: {} with options - clear_cache: {}, no_cache: {}, skip_verify: {}",
             tool,
-            clear_cache,
-            no_cache,
-            skip_verify
+            options.clear_cache,
+            options.no_cache,
+            options.skip_verify
         );
 
         // 创建并运行工具
         let mut runner = Runner::new()?;
-        runner
-            .run_tool(
-                tool,
-                args,
-                clear_cache,
-                no_cache,
-                skip_verify,
-                php,
-                no_local,
-            )
-            .await
+        runner.run_tool_with_options(tool, args, &options).await
     }
 
     fn clean_cache(&self, tool: Option<String>) -> Result<()> {
