@@ -152,7 +152,7 @@ impl Cli {
             php: php.cloned(),
             no_local,
         };
-        
+
         tracing::info!(
             "Running tool: {} with options - clear_cache: {}, no_cache: {}, skip_verify: {}",
             tool,

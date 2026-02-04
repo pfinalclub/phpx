@@ -245,8 +245,6 @@ impl ToolResolver {
         Err(Error::ToolNotFound(identifier.name.clone()))
     }
 
-
-
     fn find_matching_version(
         &self,
         versions: &HashMap<String, PackagistVersionInfo>,
