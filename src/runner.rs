@@ -20,7 +20,7 @@ impl Runner {
     pub fn new() -> Result<Self> {
         let config = Config::default(); // TODO: 实现配置加载
         let cache_manager = CacheManager::new(config.cache_dir.clone())?;
-        
+
         Ok(Self {
             config,
             cache_manager,
@@ -45,7 +45,7 @@ impl Runner {
 
         // 解析工具标识符
         let identifier = self.resolver.parse_identifier(tool_identifier)?;
-        
+
         // 检查本地项目是否有该工具
         if !no_local {
             if let Some(local_path) = self.find_local_tool(&identifier.name) {
@@ -56,17 +56,20 @@ impl Runner {
 
         // 清理缓存（如果需要）
         if clear_cache {
-            self.cache_manager
-                .remove_entry(&identifier.name, None)?;
+            self.cache_manager.remove_entry(&identifier.name, None)?;
         }
 
         // 查找缓存中的工具
         if !no_cache {
             if let Some(version) = self.get_tool_version(&identifier).await? {
-                if let Some(cache_entry) = self.cache_manager.get_entry(&identifier.name, &version) {
+                if let Some(cache_entry) = self.cache_manager.get_entry(&identifier.name, &version)
+                {
                     let file_path = cache_entry.file_path.clone();
                     let cache_entry_clone = cache_entry.clone();
-                    if self.verify_cached_tool(&cache_entry_clone, skip_verify).is_ok() {
+                    if self
+                        .verify_cached_tool(&cache_entry_clone, skip_verify)
+                        .is_ok()
+                    {
                         tracing::info!("Using cached tool: {}@{}", identifier.name, version);
                         return self.executor.execute_phar(&file_path, args, php_path);
                     }
@@ -76,8 +79,10 @@ impl Runner {
 
         // 下载并执行工具
         let tool_info = self.resolver.resolve_tool(&identifier).await?;
-        let downloaded_path = self.download_and_cache_tool(&tool_info, skip_verify).await?;
-        
+        let downloaded_path = self
+            .download_and_cache_tool(&tool_info, skip_verify)
+            .await?;
+
         self.executor.execute_phar(&downloaded_path, args, php_path)
     }
 
@@ -113,7 +118,11 @@ impl Runner {
         tool_info.map(|info| Ok(info.version)).transpose()
     }
 
-    fn verify_cached_tool(&self, cache_entry: &crate::cache::CacheEntry, skip_verify: bool) -> Result<()> {
+    fn verify_cached_tool(
+        &self,
+        cache_entry: &crate::cache::CacheEntry,
+        skip_verify: bool,
+    ) -> Result<()> {
         if skip_verify || self.security_manager.skip_verification() {
             return Ok(());
         }
@@ -159,7 +168,7 @@ impl Runner {
                 self.security_manager
                     .verify_signature(&cache_path, Some(signature_url))?;
             }
-            
+
             if let Some(expected_hash) = &tool_info.hash {
                 self.security_manager
                     .verify_hash(&cache_path, expected_hash)?;
@@ -192,11 +201,11 @@ impl Runner {
     fn calculate_file_hash(&self, file_path: &PathBuf) -> Result<String> {
         use std::fs::File;
         use std::io::Read;
-        
+
         let mut file = File::open(file_path)?;
         let mut buffer = Vec::new();
         file.read_to_end(&mut buffer)?;
-        
+
         Ok(format!("{:x}", md5::compute(&buffer)))
     }
 
@@ -205,11 +214,13 @@ impl Runner {
             Some(name) => self.cache_manager.remove_entry(&name, None),
             None => {
                 // 清理所有缓存
-                let entries: Vec<_> = self.cache_manager.list_entries()
+                let entries: Vec<_> = self
+                    .cache_manager
+                    .list_entries()
                     .into_iter()
                     .map(|e| (e.tool_name.clone(), e.version.clone()))
                     .collect();
-                
+
                 for (tool_name, version) in entries {
                     self.cache_manager
                         .remove_entry(&tool_name, Some(&version))?;
@@ -221,13 +232,16 @@ impl Runner {
 
     pub fn list_cache(&self) -> Result<()> {
         let entries = self.cache_manager.list_entries();
-        
+
         if entries.is_empty() {
             println!("No cached tools found.");
             return Ok(());
         }
 
-        println!("{:<20} {:<15} {:<10} {:<12}", "Tool", "Version", "Size", "Last Accessed");
+        println!(
+            "{:<20} {:<15} {:<10} {:<12}",
+            "Tool", "Version", "Size", "Last Accessed"
+        );
         println!("{:-<60}", "");
 
         for entry in entries {
@@ -265,12 +279,18 @@ impl Runner {
             println!("File: {}", entry.file_path.display());
             println!("Size: {:.1}MB", entry.size as f64 / 1024.0 / 1024.0);
             println!("Download URL: {}", entry.download_url);
-            println!("Created: {}", chrono::DateTime::from_timestamp(entry.created_at as i64, 0)
-                .map(|dt| dt.format("%Y-%m-%d %H:%M:%S").to_string())
-                .unwrap_or_else(|| "Unknown".to_string()));
-            println!("Last Accessed: {}", chrono::DateTime::from_timestamp(entry.last_accessed as i64, 0)
-                .map(|dt| dt.format("%Y-%m-%d %H:%M:%S").to_string())
-                .unwrap_or_else(|| "Unknown".to_string()));
+            println!(
+                "Created: {}",
+                chrono::DateTime::from_timestamp(entry.created_at as i64, 0)
+                    .map(|dt| dt.format("%Y-%m-%d %H:%M:%S").to_string())
+                    .unwrap_or_else(|| "Unknown".to_string())
+            );
+            println!(
+                "Last Accessed: {}",
+                chrono::DateTime::from_timestamp(entry.last_accessed as i64, 0)
+                    .map(|dt| dt.format("%Y-%m-%d %H:%M:%S").to_string())
+                    .unwrap_or_else(|| "Unknown".to_string())
+            );
             println!();
         }
 

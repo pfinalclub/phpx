@@ -63,31 +63,22 @@ pub enum Commands {
 #[derive(Subcommand)]
 pub enum CacheCommands {
     /// Clean cache for a specific tool or all tools
-    Clean {
-        tool: Option<String>,
-    },
+    Clean { tool: Option<String> },
 
     /// List all cached tools
     List,
 
     /// Show cache information for a tool
-    Info {
-        tool: String,
-    },
+    Info { tool: String },
 }
 
 #[derive(Subcommand)]
 pub enum ConfigCommands {
     /// Get a configuration value
-    Get {
-        key: String,
-    },
+    Get { key: String },
 
     /// Set a configuration value
-    Set {
-        key: String,
-        value: String,
-    },
+    Set { key: String, value: String },
 }
 
 impl Cli {
@@ -133,7 +124,8 @@ impl Cli {
                 self.skip_verify,
                 self.php.as_ref(),
                 self.no_local,
-            ).await
+            )
+            .await
         } else {
             // 显示帮助信息
             println!("No command specified. Use --help for usage information.");
@@ -161,7 +153,17 @@ impl Cli {
 
         // 创建并运行工具
         let mut runner = Runner::new()?;
-        runner.run_tool(tool, args, clear_cache, no_cache, skip_verify, php, no_local).await
+        runner
+            .run_tool(
+                tool,
+                args,
+                clear_cache,
+                no_cache,
+                skip_verify,
+                php,
+                no_local,
+            )
+            .await
     }
 
     fn clean_cache(&self, tool: Option<String>) -> Result<()> {

@@ -17,7 +17,7 @@ impl Default for Config {
             cache_dir: dirs::cache_dir()
                 .unwrap_or_else(|| PathBuf::from(".cache"))
                 .join("phpx"),
-            cache_ttl: 7 * 24 * 60 * 60, // 7 days
+            cache_ttl: 7 * 24 * 60 * 60,        // 7 days
             max_cache_size: 1024 * 1024 * 1024, // 1GB
             skip_verify: false,
             default_php_path: None,

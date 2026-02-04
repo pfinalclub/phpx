@@ -24,13 +24,13 @@ impl Downloader {
         }
 
         let response = self.client.get(url).send().await?;
-        
+
         if !response.status().is_success() {
             return Err(Error::Network(response.error_for_status().unwrap_err()));
         }
 
         let content = response.bytes().await?;
-        
+
         let mut file = File::create(destination).await?;
         file.write_all(&content).await?;
         file.flush().await?;

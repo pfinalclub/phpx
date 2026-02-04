@@ -27,7 +27,7 @@ impl CacheManager {
             cache_dir,
             entries: HashMap::new(),
         };
-        
+
         manager.load_cache()?;
         Ok(manager)
     }

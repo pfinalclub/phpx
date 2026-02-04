@@ -1,6 +1,6 @@
 use crate::error::{Error, Result};
-use std::process::{Command, Stdio};
 use std::path::PathBuf;
+use std::process::{Command, Stdio};
 
 pub struct Executor;
 
@@ -16,23 +16,27 @@ impl Executor {
         php_path: Option<&PathBuf>,
     ) -> Result<()> {
         let php_binary = self.find_php_binary(php_path)?;
-        
-        tracing::info!("Executing {} with PHP: {:?}", phar_path.display(), php_binary);
+
+        tracing::info!(
+            "Executing {} with PHP: {:?}",
+            phar_path.display(),
+            php_binary
+        );
 
         let mut command = Command::new(php_binary);
         command.arg(phar_path);
         command.args(args);
-        
+
         // 继承当前环境变量
         command.envs(std::env::vars());
-        
+
         // 设置标准输入/输出
         command.stdin(Stdio::inherit());
         command.stdout(Stdio::inherit());
         command.stderr(Stdio::inherit());
 
         let status = command.status()?;
-        
+
         if status.success() {
             Ok(())
         } else {

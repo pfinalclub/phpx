@@ -54,7 +54,7 @@ impl ToolResolver {
 
     pub fn parse_identifier(&self, identifier: &str) -> Result<ToolIdentifier> {
         let parts: Vec<&str> = identifier.split('@').collect();
-        
+
         match parts.len() {
             1 => Ok(ToolIdentifier {
                 name: parts[0].to_string(),
@@ -64,7 +64,7 @@ impl ToolResolver {
             2 => {
                 let name = parts[0].to_string();
                 let version_str = parts[1];
-                
+
                 if version_str == "latest" {
                     Ok(ToolIdentifier {
                         name,
@@ -113,10 +113,10 @@ impl ToolResolver {
 
     async fn resolve_from_packagist(&self, identifier: &ToolIdentifier) -> Result<ToolInfo> {
         let url = format!("https://packagist.org/packages/{}.json", identifier.name);
-        
+
         let client = reqwest::Client::new();
         let response = client.get(&url).send().await?;
-        
+
         if !response.status().is_success() {
             return Err(Error::ToolNotFound(identifier.name.clone()));
         }
@@ -132,15 +132,13 @@ impl ToolResolver {
         }
 
         let packagist_response: PackagistResponse = response.json().await?;
-        
+
         // 找到合适的版本
-        let version = self.find_matching_version(
-            &packagist_response.package.versions,
-            identifier,
-        )?;
+        let version =
+            self.find_matching_version(&packagist_response.package.versions, identifier)?;
 
         let version_info = &packagist_response.package.versions[&version];
-        
+
         // 检查是否有 phar 文件下载链接
         if version_info.dist.dist_type != "zip" {
             return Err(Error::ToolNotFound(
@@ -164,9 +162,18 @@ impl ToolResolver {
     async fn resolve_from_github(&self, identifier: &ToolIdentifier) -> Result<ToolInfo> {
         // 尝试从 GitHub Releases 解析
         let github_urls = vec![
-            format!("https://api.github.com/repos/{}/{}/releases", identifier.name, identifier.name),
-            format!("https://api.github.com/repos/{}/php-{}/releases", identifier.name, identifier.name),
-            format!("https://api.github.com/repos/php-{}/{}/releases", identifier.name, identifier.name),
+            format!(
+                "https://api.github.com/repos/{}/{}/releases",
+                identifier.name, identifier.name
+            ),
+            format!(
+                "https://api.github.com/repos/{}/php-{}/releases",
+                identifier.name, identifier.name
+            ),
+            format!(
+                "https://api.github.com/repos/php-{}/{}/releases",
+                identifier.name, identifier.name
+            ),
         ];
 
         for url in github_urls {
@@ -174,11 +181,14 @@ impl ToolResolver {
             if let Ok(response) = client.get(&url).send().await {
                 if response.status().is_success() {
                     let releases: Vec<GitHubRelease> = response.json().await?;
-                    
+
                     // 找到合适的版本
-                    if let Some(release) = self.find_matching_github_release(&releases, identifier) {
+                    if let Some(release) = self.find_matching_github_release(&releases, identifier)
+                    {
                         // 查找 .phar 文件
-                        if let Some(asset) = release.assets.iter().find(|a| a.name.ends_with(".phar")) {
+                        if let Some(asset) =
+                            release.assets.iter().find(|a| a.name.ends_with(".phar"))
+                        {
                             return Ok(ToolInfo {
                                 name: identifier.name.clone(),
                                 version: release.tag_name.trim_start_matches('v').to_string(),
@@ -198,15 +208,24 @@ impl ToolResolver {
     async fn resolve_from_direct_url(&self, identifier: &ToolIdentifier) -> Result<ToolInfo> {
         // 尝试常见的直接下载 URL 模式
         let direct_urls = vec![
-            format!("https://github.com/{}/{}/releases/latest/download/{}.phar", identifier.name, identifier.name, identifier.name),
-            format!("https://github.com/{}/php-{}/releases/latest/download/{}.phar", identifier.name, identifier.name, identifier.name),
-            format!("https://github.com/php-{}/{}/releases/latest/download/{}.phar", identifier.name, identifier.name, identifier.name),
+            format!(
+                "https://github.com/{}/{}/releases/latest/download/{}.phar",
+                identifier.name, identifier.name, identifier.name
+            ),
+            format!(
+                "https://github.com/{}/php-{}/releases/latest/download/{}.phar",
+                identifier.name, identifier.name, identifier.name
+            ),
+            format!(
+                "https://github.com/php-{}/{}/releases/latest/download/{}.phar",
+                identifier.name, identifier.name, identifier.name
+            ),
         ];
 
         for url in direct_urls {
             let client = reqwest::Client::new();
             let response = client.head(&url).send().await?;
-            
+
             if response.status().is_success() {
                 return Ok(ToolInfo {
                     name: identifier.name.clone(),
@@ -223,8 +242,10 @@ impl ToolResolver {
 
     fn infer_phar_download_url(&self, tool_name: &str, version: &str) -> String {
         // 常见的 PHP 工具发布模式
-        format!("https://github.com/{}/{}/releases/download/{}/{}.phar", 
-                tool_name, tool_name, version, tool_name)
+        format!(
+            "https://github.com/{}/{}/releases/download/{}/{}.phar",
+            tool_name, tool_name, version, tool_name
+        )
     }
 
     fn find_matching_version(
@@ -277,7 +298,7 @@ impl ToolResolver {
     ) -> Option<&'a GitHubRelease> {
         for release in releases {
             let version_str = release.tag_name.trim_start_matches('v');
-            
+
             if let Some(constraint) = &identifier.version_constraint {
                 if let Ok(version) = Version::parse(version_str) {
                     if constraint.matches(&version) {
@@ -287,7 +308,9 @@ impl ToolResolver {
             } else if identifier.version.as_deref() == Some("latest") {
                 return releases.first();
             } else if let Some(version_str) = &identifier.version {
-                if release.tag_name == *version_str || release.tag_name == format!("v{}", version_str) {
+                if release.tag_name == *version_str
+                    || release.tag_name == format!("v{}", version_str)
+                {
                     return Some(release);
                 }
             } else {
@@ -295,7 +318,7 @@ impl ToolResolver {
                 return releases.first();
             }
         }
-        
+
         None
     }
 

@@ -1,11 +1,11 @@
+pub mod cache;
 pub mod cli;
 pub mod config;
 pub mod download;
-pub mod cache;
-pub mod security;
+pub mod error;
 pub mod executor;
 pub mod resolver;
 pub mod runner;
-pub mod error;
+pub mod security;
 
 pub use error::{Error, Result};
