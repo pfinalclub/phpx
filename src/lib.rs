@@ -12,23 +12,11 @@ use std::path::PathBuf;
 
 pub use error::{Error, Result};
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct ToolOptions {
     pub clear_cache: bool,
     pub no_cache: bool,
     pub skip_verify: bool,
     pub php: Option<PathBuf>,
     pub no_local: bool,
-}
-
-impl Default for ToolOptions {
-    fn default() -> Self {
-        Self {
-            clear_cache: false,
-            no_cache: false,
-            skip_verify: false,
-            php: None,
-            no_local: false,
-        }
-    }
 }
