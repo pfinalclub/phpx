@@ -1,6 +1,8 @@
 # phpx
-[中文](https://github.com/pfinalcub/phpx/README_ZH.md)
-[中文文档](https://github.com/pfinalcub/phpx/CONTRIBUTING_CZ.md)
+
+[中文](https://github.com/pfinalcub/phpx/README_CN.md)
+
+
 An npx-like tool for PHP, written in Rust.
 
 `phpx` allows you to run PHP command-line tools (typically `.phar` files) without requiring global or local persistent installation. Through intelligent caching and version management, it ensures execution efficiency while maintaining a clean and isolated development environment.

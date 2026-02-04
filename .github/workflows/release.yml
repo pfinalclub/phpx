@@ -1,0 +1,218 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  create-release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    outputs:
+      upload_url: ${{ steps.create-release.outputs.upload_url }}
+    steps:
+      - name: Create Release
+        id: create-release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.ref }}
+          release_name: Release ${{ github.ref }}
+          draft: false
+          prerelease: false
+
+  build:
+    name: Build ${{ matrix.target }}
+    needs: create-release
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-latest
+            artifact_name: phpx-linux-x86_64
+          - target: x86_64-apple-darwin
+            os: macos-latest
+            artifact_name: phpx-macos-x86_64
+          - target: aarch64-apple-darwin
+            os: macos-latest
+            artifact_name: phpx-macos-aarch64
+          - target: x86_64-pc-windows-msvc
+            os: windows-latest
+            artifact_name: phpx-windows-x86_64.exe
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+          target: ${{ matrix.target }}
+          components: clippy
+
+      - name: Cache dependencies
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-${{ matrix.target }}-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ matrix.target }}-
+
+      - name: Build release binary
+        run: cargo build --release --target ${{ matrix.target }}
+
+      - name: Strip binary (Unix)
+        if: matrix.os != 'windows-latest'
+        run: strip target/${{ matrix.target }}/release/phpx*
+
+      - name: Get binary size
+        id: binary-size
+        run: |
+          if [ "${{ matrix.os }}" = "windows-latest" ]; then
+            SIZE=$(stat -c%s target/${{ matrix.target }}/release/phpx.exe)
+          else
+            SIZE=$(stat -c%s target/${{ matrix.target }}/release/phpx)
+          fi
+          echo "size=$SIZE" >> $GITHUB_OUTPUT
+
+      - name: Create checksum
+        run: |
+          if [ "${{ matrix.os }}" = "windows-latest" ]; then
+            sha256sum target/${{ matrix.target }}/release/phpx.exe > ${{ matrix.artifact_name }}.sha256
+          else
+            sha256sum target/${{ matrix.target }}/release/phpx > ${{ matrix.artifact_name }}.sha256
+          fi
+
+      - name: Upload binary artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: ${{ matrix.artifact_name }}
+          path: |
+            target/${{ matrix.target }}/release/phpx*
+            ${{ matrix.artifact_name }}.sha256
+
+      - name: Upload to release
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ needs.create-release.outputs.upload_url }}
+          asset_path: target/${{ matrix.target }}/release/phpx*
+          asset_name: ${{ matrix.artifact_name }}
+          asset_content_type: application/octet-stream
+
+  verify:
+    name: Verify Binaries
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v3
+
+      - name: List downloaded files
+        run: find . -type f -name "phpx*" | sort
+
+      - name: Verify Linux binary
+        run: |
+          chmod +x phpx-linux-x86_64/phpx
+          ./phpx-linux-x86_64/phpx --version
+
+      - name: Verify macOS binary (x86_64)
+        if: always()
+        run: |
+          if [ -f "phpx-macos-x86_64/phpx" ]; then
+            chmod +x phpx-macos-x86_64/phpx
+            echo "macOS x86_64 binary exists"
+          fi
+
+      - name: Verify checksums
+        run: |
+          for dir in phpx-*; do
+            if [ -f "$dir/$dir.sha256" ]; then
+              cd "$dir"
+              sha256sum -c "$dir.sha256"
+              cd ..
+            fi
+          done
+
+  homebrew:
+    name: Update Homebrew Formula
+    needs: [build, verify]
+    if: github.event_name == 'release'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout homebrew tap
+        uses: actions/checkout@v4
+        with:
+          repository: pfinalcub/homebrew-phpx
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          path: homebrew-tap
+
+      - name: Download release assets
+        uses: actions/download-artifact@v3
+
+      - name: Calculate SHA256 for each binary
+        id: sha256
+        run: |
+          echo "linux_sha=$(sha256sum phpx-linux-x86_64/phpx | cut -d' ' -f1)" >> $GITHUB_OUTPUT
+          echo "mac_x86_sha=$(sha256sum phpx-macos-x86_64/phpx | cut -d' ' -f1)" >> $GITHUB_OUTPUT
+          echo "mac_arm_sha=$(sha256sum phpx-macos-aarch64/phpx | cut -d' ' -f1)" >> $GITHUB_OUTPUT
+
+      - name: Update formula
+        run: |
+          cat > homebrew-tap/Formula/phpx.rb << 'EOF'
+          class Phpx < Formula
+            desc "A npx-like tool for PHP - run PHP tools without installation"
+            homepage "https://github.com/pfinalcub/phpx"
+            url "https://github.com/pfinalcub/phpx/archive/refs/tags/${{ github.ref_name }}.tar.gz"
+            sha256 ""
+            license "MIT"
+
+            on_macos do
+              if Hardware::CPU.intel?
+                url "https://github.com/pfinalcub/phpx/releases/download/${{ github.ref_name }}/phpx-macos-x86_64"
+                sha256 "${{ steps.sha256.outputs.mac_x86_sha }}"
+              else
+                url "https://github.com/pfinalcub/phpx/releases/download/${{ github.ref_name }}/phpx-macos-aarch64"
+                sha256 "${{ steps.sha256.outputs.mac_arm_sha }}"
+              end
+            end
+
+            on_linux do
+              url "https://github.com/pfinalcub/phpx/releases/download/${{ github.ref_name }}/phpx-linux-x86_64"
+              sha256 "${{ steps.sha256.outputs.linux_sha }}"
+            end
+
+            def install
+              if OS.mac?
+                bin.install "phpx-macos-#{Hardware::CPU.arch}" => "phpx"
+              else
+                bin.install "phpx-linux-x86_64" => "phpx"
+              end
+            end
+
+            test do
+              system "#{bin}/phpx", "--version"
+            end
+          end
+          EOF
+
+      - name: Commit and push formula
+        run: |
+          cd homebrew-tap
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          git add Formula/phpx.rb
+          git commit -m "Update phpx to ${{ github.ref_name }}"
+          git push
