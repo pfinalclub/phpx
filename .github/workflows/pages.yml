@@ -1,0 +1,74 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [ master ]
+    paths:
+      - 'docs/**'
+      - '.github/workflows/pages.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build and Deploy
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Setup Pages
+      uses: actions/configure-pages@v4
+
+    - name: Build site
+      run: |
+        # 复制文档文件到构建目录
+        mkdir -p _site
+        cp -r docs/* _site/
+        
+        # 创建 CNAME 文件（如果需要自定义域名）
+        # echo "phpx.dev" > _site/CNAME
+        
+        # 创建 robots.txt
+        cat > _site/robots.txt << 'EOF'
+        User-agent: *
+        Allow: /
+        
+        Sitemap: https://pfinalcub.github.io/phpx/sitemap.xml
+        EOF
+        
+        # 创建 sitemap.xml
+        cat > _site/sitemap.xml << 'EOF'
+        <?xml version="1.0" encoding="UTF-8"?>
+        <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+          <url>
+            <loc>https://pfinalcub.github.io/phpx/</loc>
+            <lastmod>${{ github.event.head_commit.timestamp }}</lastmod>
+            <changefreq>monthly</changefreq>
+            <priority>1.0</priority>
+          </url>
+        </urlset>
+        EOF
+
+    - name: Upload artifact
+      uses: actions/upload-pages-artifact@v3
+      with:
+        path: _site
+
+    - name: Deploy to GitHub Pages
+      id: deployment
+      uses: actions/deploy-pages@v4

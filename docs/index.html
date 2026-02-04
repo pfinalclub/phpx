@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>phpx - 一个类似 npx 的 PHP 工具运行器</title>
+    <meta name="description" content="phpx 是一个用 Rust 编写的命令行工具，允许您直接运行 PHP 命令行工具而无需安装。">
+    <link rel="stylesheet" href="style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <header class="header">
+        <div class="container">
+            <nav class="nav">
+                <div class="logo">
+                    <h1>phpx</h1>
+                    <span class="tagline">PHP 工具运行器</span>
+                </div>
+                <ul class="nav-links">
+                    <li><a href="#features">特性</a></li>
+                    <li><a href="#installation">安装</a></li>
+                    <li><a href="#usage">使用</a></li>
+                    <li><a href="#docs">文档</a></li>
+                    <li><a href="https://github.com/pfinalclub/phpx" target="_blank">GitHub</a></li>
+                </ul>
+            </nav>
+        </div>
+    </header>
+
+    <section class="hero">
+        <div class="container">
+            <div class="hero-content">
+                <h1 class="hero-title">
+                    像 npx 一样运行 PHP 工具
+                </h1>
+                <p class="hero-description">
+                    phpx 是一个用 Rust 编写的命令行工具，允许您直接运行 PHP 命令行工具（通常是 .phar 文件），
+                    而无需进行全局或本地的持久化安装。
+                </p>
+                <div class="hero-actions">
+                    <a href="#installation" class="btn btn-primary">开始使用</a>
+                    <a href="https://github.com/pfinalclub/phpx" class="btn btn-secondary" target="_blank">
+                        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                            <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
+                        </svg>
+                        GitHub
+                    </a>
+                </div>
+                <div class="hero-terminal">
+                    <div class="terminal-header">
+                        <div class="terminal-buttons">
+                            <span class="terminal-button red"></span>
+                            <span class="terminal-button yellow"></span>
+                            <span class="terminal-button green"></span>
+                        </div>
+                        <span class="terminal-title">终端</span>
+                    </div>
+                    <div class="terminal-content">
+                        <div class="terminal-line">
+                            <span class="prompt">$</span>
+                            <span class="command">phpx phpstan analyse src/</span>
+                        </div>
+                        <div class="terminal-line">
+                            <span class="output">正在分析代码...</span>
+                        </div>
+                        <div class="terminal-line">
+                            <span class="prompt">$</span>
+                            <span class="command">phpx php-cs-fixer fix file.php</span>
+                        </div>
+                        <div class="terminal-line">
+                            <span class="output">代码格式化完成！</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section id="features" class="features">
+        <div class="container">
+            <h2 class="section-title">核心特性</h2>
+            <div class="features-grid">
+                <div class="feature-card">
+                    <div class="feature-icon">🚀</div>
+                    <h3>零污染运行</h3>
+                    <p>工具运行不污染全局或项目本地环境，所有依赖被隔离在专用缓存目录。</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">📦</div>
+                    <h3>智能缓存</h3>
+                    <p>自动下载并缓存工具，支持离线使用，提高后续执行速度。</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">🔄</div>
+                    <h3>版本管理</h3>
+                    <p>支持语义化版本约束和并行版本缓存，灵活管理工具版本。</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">🔒</div>
+                    <h3>安全验证</h3>
+                    <p>支持文件哈希验证，保障代码来源可信。</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">⚡</div>
+                    <h3>高性能</h3>
+                    <p>异步下载，利用缓存实现接近本地工具的启动速度。</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">🛠️</div>
+                    <h3>多源支持</h3>
+                    <p>支持 Packagist、GitHub Releases 和直接 URL 等多种源类型。</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section id="installation" class="installation">
+        <div class="container">
+            <h2 class="section-title">安装指南</h2>
+            <div class="installation-methods">
+                <div class="method-card">
+                    <h3>从源码构建</h3>
+                    <div class="code-block">
+                        <pre><code># 克隆项目
+git clone https://github.com/pfinalclub/phpx.git
+cd phpx
+
+# 构建项目
+cargo build --release
+
+# 安装到系统路径
+sudo cp target/release/phpx /usr/local/bin/</code></pre>
+                    </div>
+                </div>
+                <div class="method-card">
+                    <h3>下载预编译二进制</h3>
+                    <p>从 GitHub Releases 下载对应平台的二进制文件：</p>
+                    <div class="platforms">
+                        <a href="#" class="platform-link">Linux x86_64</a>
+                        <a href="#" class="platform-link">macOS x86_64</a>
+                        <a href="#" class="platform-link">macOS ARM64</a>
+                        <a href="#" class="platform-link">Windows</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section id="usage" class="usage">
+        <div class="container">
+            <h2 class="section-title">使用示例</h2>
+            <div class="usage-examples">
+                <div class="example">
+                    <h3>基本使用</h3>
+                    <div class="code-block">
+                        <pre><code># 运行 PHPStan 进行代码分析
+phpx phpstan analyse src/
+
+# 运行 PHP-CS-Fixer 格式化代码
+phpx php-cs-fixer fix file.php
+
+# 使用特定版本的工具
+phpx phpstan@^1.10 analyse --level=max src/</code></pre>
+                    </div>
+                </div>
+                <div class="example">
+                    <h3>缓存管理</h3>
+                    <div class="code-block">
+                        <pre><code># 清理指定工具的缓存
+phpx cache clean phpstan
+
+# 查看已缓存的工具
+phpx cache list
+
+# 查看工具缓存详情
+phpx cache info phpstan</code></pre>
+                    </div>
+                </div>
+                <div class="example">
+                    <h3>高级选项</h3>
+                    <div class="code-block">
+                        <pre><code># 强制清除缓存并重新下载
+phpx --clear-cache phpstan analyse src/
+
+# 跳过安全验证
+phpx --skip-verify php-cs-fixer fix file.php
+
+# 指定 PHP 二进制路径
+phpx --php /usr/local/bin/php8.1 phpstan</code></pre>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section id="docs" class="documentation">
+        <div class="container">
+            <h2 class="section-title">文档资源</h2>
+            <div class="docs-links">
+                <a href="https://github.com/pfinalclub/phpx//README_CN.md" class="doc-link">
+                    <span class="doc-icon">📖</span>
+                    <span class="doc-title">完整文档</span>
+                    <span class="doc-desc">详细的使用说明和配置指南</span>
+                </a>
+                <a href="https://github.com/pfinalclub/phpx/CONTRIBUTING_CN.md" class="doc-link">
+                    <span class="doc-icon">🤝</span>
+                    <span class="doc-title">贡献指南</span>
+                    <span class="doc-desc">如何参与项目开发</span>
+                </a>
+                <a href="https://github.com/pfinalclub/phpx/issues" class="doc-link">
+                    <span class="doc-icon">🐛</span>
+                    <span class="doc-title">问题反馈</span>
+                    <span class="doc-desc">报告 bug 或提出建议</span>
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-content">
+                <div class="footer-section">
+                    <h3>phpx</h3>
+                    <p>让 PHP 工具运行更简单</p>
+                </div>
+                <div class="footer-section">
+                    <h4>链接</h4>
+                    <ul>
+                        <li><a href="https://github.com/pfinalclub/phpx">GitHub</a></li>
+                        <li><a href="#installation">安装</a></li>
+                        <li><a href="#usage">使用</a></li>
+                    </ul>
+                </div>
+                <div class="footer-section">
+                    <h4>资源</h4>
+                    <ul>
+                        <li><a href="#docs">文档</a></li>
+                        <li><a href="https://github.com/pfinalclub/phpx/issues">问题</a></li>
+                        <li><a href="https://github.com/pfinalclub/phpx/releases">发布</a></li>
+                    </ul>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; 2024 phpx. MIT License.</p>
+            </div>
+        </div>
+    </footer>
+
+    <script src="script.js"></script>
+</body>
+</html>
