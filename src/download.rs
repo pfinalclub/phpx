@@ -18,6 +18,11 @@ impl Downloader {
     pub async fn download_file(&self, url: &str, destination: &PathBuf) -> Result<()> {
         tracing::info!("Downloading from {} to {:?}", url, destination);
 
+        // 确保目标目录存在
+        if let Some(parent) = destination.parent() {
+            tokio::fs::create_dir_all(parent).await?;
+        }
+
         let response = self.client.get(url).send().await?;
         
         if !response.status().is_success() {

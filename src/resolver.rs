@@ -19,6 +19,32 @@ pub struct ToolInfo {
     pub hash: Option<String>,
 }
 
+// Packagist 相关类型
+#[derive(Deserialize)]
+struct PackagistVersionInfo {
+    dist: PackagistDist,
+}
+
+#[derive(Deserialize)]
+struct PackagistDist {
+    url: String,
+    #[serde(rename = "type")]
+    dist_type: String,
+}
+
+// GitHub 相关类型
+#[derive(Deserialize)]
+struct GitHubRelease {
+    tag_name: String,
+    assets: Vec<GitHubAsset>,
+}
+
+#[derive(Deserialize)]
+struct GitHubAsset {
+    name: String,
+    browser_download_url: String,
+}
+
 pub struct ToolResolver;
 
 impl ToolResolver {
@@ -77,6 +103,11 @@ impl ToolResolver {
             return Ok(tool_info);
         }
 
+        // 最后尝试直接 URL 解析
+        if let Ok(tool_info) = self.resolve_from_direct_url(identifier).await {
+            return Ok(tool_info);
+        }
+
         Err(Error::ToolNotFound(identifier.name.clone()))
     }
 
@@ -110,26 +141,90 @@ impl ToolResolver {
 
         let version_info = &packagist_response.package.versions[&version];
         
+        // 检查是否有 phar 文件下载链接
         if version_info.dist.dist_type != "zip" {
             return Err(Error::ToolNotFound(
                 "Only zip distributions are supported".to_string(),
             ));
         }
 
+        // 对于 PHP 工具，通常需要从 GitHub Releases 或其他源获取 .phar 文件
+        // 这里我们尝试从常见的 PHP 工具发布模式推断下载 URL
+        let download_url = self.infer_phar_download_url(&identifier.name, &version);
+
         Ok(ToolInfo {
             name: identifier.name.clone(),
             version,
-            download_url: version_info.dist.url.clone(),
+            download_url,
             signature_url: None,
             hash: None,
         })
     }
 
     async fn resolve_from_github(&self, identifier: &ToolIdentifier) -> Result<ToolInfo> {
-        // TODO: 实现 GitHub Releases 解析
-        Err(Error::ToolNotFound(
-            "GitHub resolution not implemented yet".to_string(),
-        ))
+        // 尝试从 GitHub Releases 解析
+        let github_urls = vec![
+            format!("https://api.github.com/repos/{}/{}/releases", identifier.name, identifier.name),
+            format!("https://api.github.com/repos/{}/php-{}/releases", identifier.name, identifier.name),
+            format!("https://api.github.com/repos/php-{}/{}/releases", identifier.name, identifier.name),
+        ];
+
+        for url in github_urls {
+            let client = reqwest::Client::new();
+            if let Ok(response) = client.get(&url).send().await {
+                if response.status().is_success() {
+                    let releases: Vec<GitHubRelease> = response.json().await?;
+                    
+                    // 找到合适的版本
+                    if let Some(release) = self.find_matching_github_release(&releases, identifier) {
+                        // 查找 .phar 文件
+                        if let Some(asset) = release.assets.iter().find(|a| a.name.ends_with(".phar")) {
+                            return Ok(ToolInfo {
+                                name: identifier.name.clone(),
+                                version: release.tag_name.trim_start_matches('v').to_string(),
+                                download_url: asset.browser_download_url.clone(),
+                                signature_url: self.find_signature_url(&release.assets),
+                                hash: None,
+                            });
+                        }
+                    }
+                }
+            }
+        }
+
+        Err(Error::ToolNotFound(identifier.name.clone()))
+    }
+
+    async fn resolve_from_direct_url(&self, identifier: &ToolIdentifier) -> Result<ToolInfo> {
+        // 尝试常见的直接下载 URL 模式
+        let direct_urls = vec![
+            format!("https://github.com/{}/{}/releases/latest/download/{}.phar", identifier.name, identifier.name, identifier.name),
+            format!("https://github.com/{}/php-{}/releases/latest/download/{}.phar", identifier.name, identifier.name, identifier.name),
+            format!("https://github.com/php-{}/{}/releases/latest/download/{}.phar", identifier.name, identifier.name, identifier.name),
+        ];
+
+        for url in direct_urls {
+            let client = reqwest::Client::new();
+            let response = client.head(&url).send().await?;
+            
+            if response.status().is_success() {
+                return Ok(ToolInfo {
+                    name: identifier.name.clone(),
+                    version: "latest".to_string(),
+                    download_url: url.clone(),
+                    signature_url: Some(format!("{}.asc", url)),
+                    hash: None,
+                });
+            }
+        }
+
+        Err(Error::ToolNotFound(identifier.name.clone()))
+    }
+
+    fn infer_phar_download_url(&self, tool_name: &str, version: &str) -> String {
+        // 常见的 PHP 工具发布模式
+        format!("https://github.com/{}/{}/releases/download/{}/{}.phar", 
+                tool_name, tool_name, version, tool_name)
     }
 
     fn find_matching_version(
@@ -174,17 +269,40 @@ impl ToolResolver {
             "No matching version found".to_string(),
         ))
     }
-}
 
-// 为 Packagist 响应定义的类型
-#[derive(Deserialize)]
-struct PackagistVersionInfo {
-    dist: PackagistDist,
-}
+    fn find_matching_github_release<'a>(
+        &self,
+        releases: &'a [GitHubRelease],
+        identifier: &ToolIdentifier,
+    ) -> Option<&'a GitHubRelease> {
+        for release in releases {
+            let version_str = release.tag_name.trim_start_matches('v');
+            
+            if let Some(constraint) = &identifier.version_constraint {
+                if let Ok(version) = Version::parse(version_str) {
+                    if constraint.matches(&version) {
+                        return Some(release);
+                    }
+                }
+            } else if identifier.version.as_deref() == Some("latest") {
+                return releases.first();
+            } else if let Some(version_str) = &identifier.version {
+                if release.tag_name == *version_str || release.tag_name == format!("v{}", version_str) {
+                    return Some(release);
+                }
+            } else {
+                // 没有版本约束，使用最新版本
+                return releases.first();
+            }
+        }
+        
+        None
+    }
 
-#[derive(Deserialize)]
-struct PackagistDist {
-    url: String,
-    #[serde(rename = "type")]
-    dist_type: String,
+    fn find_signature_url(&self, assets: &[GitHubAsset]) -> Option<String> {
+        assets
+            .iter()
+            .find(|a| a.name.ends_with(".asc") || a.name.ends_with(".sig"))
+            .map(|a| a.browser_download_url.clone())
+    }
 }
