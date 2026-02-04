@@ -1,0 +1,79 @@
+[package]
+name = "phpx"
+version = "0.1.0"
+edition = "2021"
+authors = ["phpx developers"]
+description = "A npx-like tool for PHP - run PHP tools without installation"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/your-username/phpx"
+readme = "README.md"
+keywords = ["php", "cli", "tools", "npx", "phar"]
+categories = ["command-line-utilities", "development-tools"]
+
+[lib]
+name = "phpx"
+path = "src/lib.rs"
+
+[[bin]]
+name = "phpx"
+path = "src/main.rs"
+
+[dependencies]
+# 命令行解析
+clap = { version = "4.0", features = ["derive", "cargo"] }
+
+# HTTP 客户端
+reqwest = { version = "0.11", features = ["json", "stream"] }
+tokio = { version = "1.0", features = ["full"] }
+
+# 配置管理
+config = "0.13"
+serde = { version = "1.0", features = ["derive"] }
+toml = "0.8"
+
+# 文件系统与路径处理
+dirs = "5.0"
+path-absolutize = "3.0"
+
+# 版本处理
+semver = "1.0"
+
+# 安全验证 (暂时注释，后续实现)
+# gpgme = "0.10"
+# ring = "0.17"
+
+# 错误处理
+anyhow = "1.0"
+thiserror = "1.0"
+
+# 日志与输出
+tracing = "0.1"
+tracing-subscriber = "0.3"
+indicatif = "0.17" # 进度条
+
+# 其他工具库
+lazy_static = "1.4"
+regex = "1.0"
+serde_json = "1.0"
+md5 = "0.7"
+chrono = "0.4"
+
+[dev-dependencies]
+# 测试框架
+assert_cmd = "2.0"
+predicates = "3.0"
+tempfile = "3.3"
+
+# 性能测试
+criterion = "0.5"
+
+# HTTP 测试模拟
+mockito = "1.0"
+
+[profile.release]
+lto = true
+codegen-units = 1
+panic = "abort"
+
+[profile.dev]
+panic = "unwind"
