@@ -78,8 +78,11 @@ jobs:
         run: |
           if [ "${{ matrix.os }}" = "windows-latest" ]; then
             SIZE=$(stat -c%s target/${{ matrix.target }}/release/phpx.exe)
-          else
+          elif [ "${{ matrix.os }}" = "ubuntu-latest" ]; then
             SIZE=$(stat -c%s target/${{ matrix.target }}/release/phpx)
+          else
+            # macOS uses different stat syntax
+            SIZE=$(stat -f%z target/${{ matrix.target }}/release/phpx)
           fi
           echo "size=$SIZE" >> $GITHUB_OUTPUT
 
