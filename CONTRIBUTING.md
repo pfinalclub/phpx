@@ -1,170 +1,170 @@
-# 贡献指南
+# Contributing Guide
 
-感谢您对 phpx 项目的关注！我们欢迎各种形式的贡献。
+Thank you for your interest in the phpx project! We welcome contributions of all kinds.
 
-## 🚀 快速开始
+## 🚀 Quick Start
 
-### 开发环境设置
+### Development Environment Setup
 
-1. **克隆项目**
+1. **Clone the Project**
    ```bash
    git clone https://github.com/pfinalcub/phpx.git
    cd phpx
    ```
 
-2. **安装 Rust 工具链**
-   - 安装 [Rust](https://www.rust-lang.org/tools/install) 1.70+
-   - 安装必要的工具：
+2. **Install Rust Toolchain**
+   - Install [Rust](https://www.rust-lang.org/tools/install) 1.70+
+   - Install necessary tools:
      ```bash
      rustup component add clippy
      rustup component add rustfmt
      ```
 
-3. **构建项目**
+3. **Build the Project**
    ```bash
    cargo build
    ```
 
-## 🎯 开发流程
+## 🎯 Development Process
 
-### 代码风格
+### Code Style
 
-- 遵循 Rust 官方代码风格
-- 使用 `cargo fmt` 格式化代码
-- 使用 `cargo clippy` 进行代码检查
-- 函数命名采用 snake_case
-- 每行代码不超过 80 字符
+- Follow official Rust code style
+- Use `cargo fmt` for code formatting
+- Use `cargo clippy` for code linting
+- Function naming uses snake_case
+- Maximum 80 characters per line
 
-### 提交信息规范
+### Commit Message Convention
 
-使用约定式提交格式：
+Use conventional commit format:
 
 ```
-<类型>[可选的作用域]: <描述>
+<type>[optional scope]: <description>
 
-[可选的正文]
+[optional body]
 
-[可选的脚注]
+[optional footer]
 ```
 
-**类型**:
-- `feat`: 新功能
-- `fix`: 修复 bug
-- `docs`: 文档更新
-- `style`: 代码格式调整
-- `refactor`: 重构
-- `test`: 测试相关
-- `chore`: 构建过程或辅助工具变动
+**Types**:
+- `feat`: New feature
+- `fix`: Bug fix
+- `docs`: Documentation update
+- `style`: Code style changes
+- `refactor`: Code refactoring
+- `test`: Test-related changes
+- `chore`: Build process or tool changes
 
-### 分支策略
+### Branch Strategy
 
-- `main`: 主分支，稳定版本
-- `develop`: 开发分支
-- `feature/*`: 功能分支
-- `fix/*`: bug 修复分支
+- `main`: Main branch, stable releases
+- `develop`: Development branch
+- `feature/*`: Feature branches
+- `fix/*`: Bug fix branches
 
-## 🐛 报告问题
+## 🐛 Reporting Issues
 
-在报告问题前，请：
+Before reporting an issue, please:
 
-1. 检查是否已有相关 issue
-2. 提供详细的复现步骤
-3. 包含错误日志和系统信息
-4. 如果可能，提供最小复现代码
+1. Check if a related issue already exists
+2. Provide detailed reproduction steps
+3. Include error logs and system information
+4. If possible, provide minimal reproducible code
 
-## 🔧 开发任务
+## 🔧 Development Tasks
 
-### 当前开发重点
+### Current Development Focus
 
-#### Phase 2: 安全验证和配置系统完善
-- [ ] 实现 GPG/PGP 签名验证
-- [ ] 完善配置文件读写功能
-- [ ] 实现 `phpx config` 子命令
-- [ ] 实现 `phpx self-update` 命令
+#### Phase 2: Security Verification and Configuration System Improvements
+- [ ] Implement GPG/PGP signature verification
+- [ ] Improve configuration file read/write functionality
+- [ ] Implement `phpx config` subcommands
+- [ ] Implement `phpx self-update` command
 
-#### Phase 3: 高级功能和用户体验优化
-- [ ] 添加进度条显示
-- [ ] 实现缓存 TTL 和空间限制
-- [ ] 支持 HTTP 代理
-- [ ] 添加自动完成支持
+#### Phase 3: Advanced Features and User Experience Optimization
+- [ ] Add progress bar display
+- [ ] Implement cache TTL and size limits
+- [ ] Support HTTP proxy
+- [ ] Add auto-completion support
 
-### 如何开始贡献
+### How to Start Contributing
 
-1. **选择任务**: 从上面的任务列表中选择一个
-2. **创建分支**: `git checkout -b feature/your-feature`
-3. **实现功能**: 编写代码和测试
-4. **运行测试**: `cargo test`
-5. **代码检查**: `cargo clippy && cargo fmt`
-6. **提交 PR**: 描述功能变更和测试情况
+1. **Choose a Task**: Select from the task list above
+2. **Create a Branch**: `git checkout -b feature/your-feature`
+3. **Implement Feature**: Write code and tests
+4. **Run Tests**: `cargo test`
+5. **Code Quality**: `cargo clippy && cargo fmt`
+6. **Submit PR**: Describe feature changes and test results
 
-## 🧪 测试
+## 🧪 Testing
 
-### 运行测试
+### Running Tests
 
 ```bash
-# 运行所有测试
+# Run all tests
 cargo test
 
-# 运行特定测试
+# Run specific tests
 cargo test test_name
 
-# 运行集成测试
+# Run integration tests
 cargo test --test integration
 ```
 
-### 测试覆盖率
+### Test Coverage
 
 ```bash
-# 安装 tarpaulin
+# Install tarpaulin
 cargo install cargo-tarpaulin
 
-# 运行覆盖率测试
+# Run coverage tests
 cargo tarpaulin --ignore-tests
 ```
 
-## 📚 文档
+## 📚 Documentation
 
-### 代码文档
+### Code Documentation
 
-- 所有公共函数和复杂逻辑都应添加注释
-- 使用 Rustdoc 格式编写文档注释
-- 运行 `cargo doc` 生成文档
+- All public functions and complex logic should have comments
+- Use Rustdoc format for documentation comments
+- Run `cargo doc` to generate documentation
 
-### 用户文档
+### User Documentation
 
-- 更新 README.md
-- 添加使用示例
-- 编写常见问题解答
+- Update README.md
+- Add usage examples
+- Write FAQ documentation
 
-## 🔒 安全
+## 🔒 Security
 
-### 安全最佳实践
+### Security Best Practices
 
-- 敏感数据（如密码）需加密存储
-- 所有网络通信使用 HTTPS
-- 验证下载文件的完整性和来源
-- 定期更新依赖项
+- Sensitive data (like passwords) must be encrypted
+- All network communication uses HTTPS
+- Verify integrity and source of downloaded files
+- Regularly update dependencies
 
-### 安全漏洞报告
+### Security Vulnerability Reporting
 
-如果您发现安全漏洞，请通过安全渠道报告：
-- 发送邮件至 security@example.com
-- 不要公开披露漏洞细节
+If you discover a security vulnerability, please report it through secure channels:
+- Email security@example.com
+- Do not publicly disclose vulnerability details
 
-## 🤝 行为准则
+## 🤝 Code of Conduct
 
-我们遵循贡献者公约行为准则。请确保：
+We follow the Contributor Covenant Code of Conduct. Please ensure:
 
-- 尊重所有社区成员
-- 建设性讨论技术问题
-- 帮助新贡献者融入社区
+- Respect all community members
+- Constructive discussion of technical issues
+- Help new contributors integrate into the community
 
-## 📞 联系方式
+## 📞 Contact Information
 
-- Issues: [GitHub Issues](https://github.com/your-username/phpx/issues)
-- 讨论: [GitHub Discussions](https://github.com/your-username/phpx/discussions)
-- 邮件: maintainers@example.com
+- Issues: [GitHub Issues](https://github.com/pfinalcub/phpx/issues)
+- Discussions: [GitHub Discussions](https://github.com/pfinalcub/phpx/discussions)
+- Email: maintainers@example.com
 
 ---
 
-感谢您的贡献！让我们一起让 phpx 变得更好！ 🚀
+Thank you for contributing! Let's make phpx better together! 🚀
