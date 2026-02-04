@@ -1,0 +1,5 @@
+# Netlify style redirects (also works on GitHub Pages with proper configuration)
+/                 /index.html          200
+/index.html       /index.html          200
+/zh              /index_zh.html       200
+/en              /index.html          200

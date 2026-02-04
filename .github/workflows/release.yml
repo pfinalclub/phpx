@@ -71,7 +71,7 @@ jobs:
 
       - name: Strip binary (Unix)
         if: matrix.os != 'windows-latest'
-        run: strip target/${{ matrix.target }}/release/phpx*
+        run: strip target/${{ matrix.target }}/release/phpx
 
       - name: Get binary size
         id: binary-size
