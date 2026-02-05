@@ -208,20 +208,28 @@ impl ToolResolver {
         if title != name {
             let (to, tr) = if name.contains('/') {
                 let (a, b) = name.split_once('/').unwrap();
-                let at: String = a.split('-').map(|s| {
-                    let mut c = s.chars();
-                    match c.next() {
-                        None => String::new(),
-                        Some(f) => f.to_uppercase().chain(c).collect(),
-                    }
-                }).collect::<Vec<_>>().join("-");
-                let bt: String = b.split('-').map(|s| {
-                    let mut c = s.chars();
-                    match c.next() {
-                        None => String::new(),
-                        Some(f) => f.to_uppercase().chain(c).collect(),
-                    }
-                }).collect::<Vec<_>>().join("-");
+                let at: String = a
+                    .split('-')
+                    .map(|s| {
+                        let mut c = s.chars();
+                        match c.next() {
+                            None => String::new(),
+                            Some(f) => f.to_uppercase().chain(c).collect(),
+                        }
+                    })
+                    .collect::<Vec<_>>()
+                    .join("-");
+                let bt: String = b
+                    .split('-')
+                    .map(|s| {
+                        let mut c = s.chars();
+                        match c.next() {
+                            None => String::new(),
+                            Some(f) => f.to_uppercase().chain(c).collect(),
+                        }
+                    })
+                    .collect::<Vec<_>>()
+                    .join("-");
                 (at, bt)
             } else {
                 (title.clone(), title.clone())
@@ -247,20 +255,36 @@ impl ToolResolver {
         if acronym != name && (acronym != title || title == name) {
             let (ao, ar) = if name.contains('/') {
                 let (a, b) = name.split_once('/').unwrap();
-                let aa: String = a.split('-').map(|s| if s.len() <= 3 { s.to_uppercase() } else {
-                    let mut c = s.chars();
-                    match c.next() {
-                        None => String::new(),
-                        Some(f) => f.to_uppercase().chain(c).collect(),
-                    }
-                }).collect::<Vec<_>>().join("-");
-                let ab: String = b.split('-').map(|s| if s.len() <= 3 { s.to_uppercase() } else {
-                    let mut c = s.chars();
-                    match c.next() {
-                        None => String::new(),
-                        Some(f) => f.to_uppercase().chain(c).collect(),
-                    }
-                }).collect::<Vec<_>>().join("-");
+                let aa: String = a
+                    .split('-')
+                    .map(|s| {
+                        if s.len() <= 3 {
+                            s.to_uppercase()
+                        } else {
+                            let mut c = s.chars();
+                            match c.next() {
+                                None => String::new(),
+                                Some(f) => f.to_uppercase().chain(c).collect(),
+                            }
+                        }
+                    })
+                    .collect::<Vec<_>>()
+                    .join("-");
+                let ab: String = b
+                    .split('-')
+                    .map(|s| {
+                        if s.len() <= 3 {
+                            s.to_uppercase()
+                        } else {
+                            let mut c = s.chars();
+                            match c.next() {
+                                None => String::new(),
+                                Some(f) => f.to_uppercase().chain(c).collect(),
+                            }
+                        }
+                    })
+                    .collect::<Vec<_>>()
+                    .join("-");
                 (aa, ab)
             } else {
                 (acronym.clone(), acronym)
