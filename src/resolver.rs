@@ -109,9 +109,17 @@ impl ToolResolver {
             return Ok(tool_info);
         }
 
-        // 最后尝试直接 URL 解析
-        if let Ok(tool_info) = self.resolve_from_direct_url(identifier).await {
-            return Ok(tool_info);
+        // 仅当用户未指定版本约束且未指定具体版本（或明确 @latest）时，才尝试直接 URL（latest）
+        let use_direct_url = identifier.version_constraint.is_none()
+            && identifier
+                .version
+                .as_deref()
+                .map(|v| v == "latest")
+                .unwrap_or(true);
+        if use_direct_url {
+            if let Ok(tool_info) = self.resolve_from_direct_url(identifier).await {
+                return Ok(tool_info);
+            }
         }
 
         Err(Error::ToolNotFound(identifier.name.clone()))
@@ -181,23 +189,114 @@ impl ToolResolver {
         }
     }
 
-    async fn resolve_from_github(&self, identifier: &ToolIdentifier) -> Result<ToolInfo> {
-        let (owner, repo) = Self::github_owner_repo(&identifier.name);
-        // 尝试从 GitHub Releases 解析：owner/repo 格式
-        let github_urls = vec![
-            format!("https://api.github.com/repos/{}/{}/releases", owner, repo),
-            format!(
-                "https://api.github.com/repos/{}/php-{}/releases",
-                owner, repo
-            ),
-            format!(
-                "https://api.github.com/repos/php-{}/{}/releases",
-                owner, repo
-            ),
-        ];
+    /// 生成 (owner, repo) 的多种写法，用于应对 GitHub 仓库名大小写（如 PHP-CS-Fixer）
+    fn github_owner_repo_variants(name: &str) -> Vec<(String, String)> {
+        let (owner, repo) = Self::github_owner_repo(name);
+        let mut out = vec![(owner.clone(), repo.clone())];
+        // 各段首字母大写，如 php-cs-fixer -> Php-Cs-Fixer
+        let title: String = name
+            .split('-')
+            .map(|s| {
+                let mut c = s.chars();
+                match c.next() {
+                    None => String::new(),
+                    Some(f) => f.to_uppercase().chain(c).collect(),
+                }
+            })
+            .collect::<Vec<_>>()
+            .join("-");
+        if title != name {
+            let (to, tr) = if name.contains('/') {
+                let (a, b) = name.split_once('/').unwrap();
+                let at: String = a.split('-').map(|s| {
+                    let mut c = s.chars();
+                    match c.next() {
+                        None => String::new(),
+                        Some(f) => f.to_uppercase().chain(c).collect(),
+                    }
+                }).collect::<Vec<_>>().join("-");
+                let bt: String = b.split('-').map(|s| {
+                    let mut c = s.chars();
+                    match c.next() {
+                        None => String::new(),
+                        Some(f) => f.to_uppercase().chain(c).collect(),
+                    }
+                }).collect::<Vec<_>>().join("-");
+                (at, bt)
+            } else {
+                (title.clone(), title.clone())
+            };
+            out.push((to, tr));
+        }
+        // 短段（≤3 字符）全大写，如 php-cs-fixer -> PHP-CS-Fixer
+        let acronym: String = name
+            .split('-')
+            .map(|s| {
+                if s.len() <= 3 {
+                    s.to_uppercase()
+                } else {
+                    let mut c = s.chars();
+                    match c.next() {
+                        None => String::new(),
+                        Some(f) => f.to_uppercase().chain(c).collect(),
+                    }
+                }
+            })
+            .collect::<Vec<_>>()
+            .join("-");
+        if acronym != name && (acronym != title || title == name) {
+            let (ao, ar) = if name.contains('/') {
+                let (a, b) = name.split_once('/').unwrap();
+                let aa: String = a.split('-').map(|s| if s.len() <= 3 { s.to_uppercase() } else {
+                    let mut c = s.chars();
+                    match c.next() {
+                        None => String::new(),
+                        Some(f) => f.to_uppercase().chain(c).collect(),
+                    }
+                }).collect::<Vec<_>>().join("-");
+                let ab: String = b.split('-').map(|s| if s.len() <= 3 { s.to_uppercase() } else {
+                    let mut c = s.chars();
+                    match c.next() {
+                        None => String::new(),
+                        Some(f) => f.to_uppercase().chain(c).collect(),
+                    }
+                }).collect::<Vec<_>>().join("-");
+                (aa, ab)
+            } else {
+                (acronym.clone(), acronym)
+            };
+            if !out.iter().any(|(o, r)| o == &ao && r == &ar) {
+                out.push((ao, ar));
+            }
+        }
+        out
+    }
 
-        for url in github_urls {
-            let client = reqwest::Client::new();
+    async fn resolve_from_github(&self, identifier: &ToolIdentifier) -> Result<ToolInfo> {
+        // GitHub API 要求带 User-Agent，且部分仓库使用大写（如 PHP-CS-Fixer）
+        let client = reqwest::Client::builder()
+            .user_agent("phpx/0.1")
+            .build()
+            .unwrap_or_else(|_| reqwest::Client::new());
+
+        let base_urls: Vec<String> = Self::github_owner_repo_variants(&identifier.name)
+            .into_iter()
+            .flat_map(|(owner, repo)| {
+                vec![
+                    format!("https://api.github.com/repos/{}/{}/releases", owner, repo),
+                    format!(
+                        "https://api.github.com/repos/{}/php-{}/releases",
+                        owner, repo
+                    ),
+                    format!(
+                        "https://api.github.com/repos/php-{}/{}/releases",
+                        owner, repo
+                    ),
+                ]
+            })
+            .collect();
+
+        for url in base_urls {
             if let Ok(response) = client.get(&url).send().await {
                 if response.status().is_success() {
                     let releases: Vec<GitHubRelease> = response.json().await?;
@@ -342,5 +441,21 @@ impl ToolResolver {
             .iter()
             .find(|a| a.name.ends_with(".asc") || a.name.ends_with(".sig"))
             .map(|a| a.browser_download_url.clone())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parse_caret_version_sets_constraint() {
+        let resolver = ToolResolver::new();
+        let id = resolver.parse_identifier("php-cs-fixer@^3.14").unwrap();
+        assert!(
+            id.version_constraint.is_some(),
+            "^3.14 should be parsed as version_constraint, got version={:?}",
+            id.version
+        );
     }
 }
