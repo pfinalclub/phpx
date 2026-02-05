@@ -1,6 +1,6 @@
 # phpx
 
-[中文](https://github.com/pfinalcub/phpx/README_CN.md)
+[中文](https://github.com/pfinalclub/phpx/blob/master/README_CN.md)
 
 
 An npx-like tool for PHP, written in Rust.
