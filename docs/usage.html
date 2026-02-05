@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>phpx - Usage Guide</title>
+    <meta name="description" content="Complete usage documentation for phpx - run PHP tools without installation.">
+    <link rel="stylesheet" href="style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        .doc-page .container { max-width: 800px; }
+        .doc-page .section-title { text-align: left; font-size: 1.75rem; margin-bottom: 1.5rem; }
+        .doc-page section { padding: 2.5rem 0; border-bottom: 1px solid #e5e7eb; }
+        .doc-page section:last-of-type { border-bottom: none; }
+        .doc-page h3 { font-size: 1.25rem; margin: 1.5rem 0 0.75rem; color: #1f2937; }
+        .doc-page h4 { font-size: 1.1rem; margin: 1.25rem 0 0.5rem; color: #374151; }
+        .doc-page p { margin-bottom: 1rem; color: #4b5563; }
+        .doc-page ul { margin: 0.5rem 0 1rem 1.5rem; color: #4b5563; }
+        .doc-page table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.9375rem; }
+        .doc-page th, .doc-page td { border: 1px solid #e5e7eb; padding: 0.75rem 1rem; text-align: left; }
+        .doc-page th { background: #f8fafc; font-weight: 600; color: #1f2937; }
+        .doc-page td code { background: #f1f5f9; padding: 0.2em 0.4em; border-radius: 0.25rem; font-size: 0.875em; }
+        .doc-page .code-block { margin: 1rem 0; }
+        .doc-page .back-link { display: inline-flex; align-items: center; gap: 0.5rem; color: #2563eb; text-decoration: none; font-weight: 500; margin-bottom: 2rem; }
+        .doc-page .back-link:hover { text-decoration: underline; }
+        .doc-page .toc { background: #f8fafc; padding: 1.5rem; border-radius: 0.5rem; margin-bottom: 2rem; }
+        .doc-page .toc h3 { margin-top: 0; }
+        .doc-page .toc ul { list-style: none; margin-left: 0; }
+        .doc-page .toc a { color: #2563eb; text-decoration: none; }
+        .doc-page .toc a:hover { text-decoration: underline; }
+    </style>
+</head>
+<body class="doc-page">
+    <header class="header">
+        <div class="container">
+            <nav class="nav">
+                <div class="logo">
+                    <a href="index.html" style="text-decoration: none; color: inherit;">
+                        <h1>phpx</h1>
+                        <span class="tagline">PHP Tool Runner</span>
+                    </a>
+                </div>
+                <ul class="nav-links">
+                    <li><a href="index.html">Home</a></li>
+                    <li><a href="usage.html">Usage</a></li>
+                    <li><a href="https://github.com/pfinalcub/phpx" target="_blank">GitHub</a></li>
+                    <li><a href="index_zh.html" class="language-switcher">中文</a></li>
+                </ul>
+            </nav>
+        </div>
+    </header>
+
+    <main style="margin-top: 80px; padding: 2rem 0 4rem;">
+        <div class="container">
+            <a href="index.html" class="back-link">← Back to Home</a>
+
+            <h1 style="font-size: 2.5rem; margin-bottom: 0.5rem; color: #1f2937;">phpx Usage Guide</h1>
+            <p style="font-size: 1.125rem; color: #6b7280; margin-bottom: 2rem;">Run PHP command-line tools without installation. This guide covers installation, commands, options, and configuration.</p>
+
+            <nav class="toc">
+                <h3>Contents</h3>
+                <ul>
+                    <li><a href="#installation">1. Installation</a></li>
+                    <li><a href="#quick-start">2. Quick Start</a></li>
+                    <li><a href="#basic-usage">3. Basic Usage</a></li>
+                    <li><a href="#version-management">4. Version Management</a></li>
+                    <li><a href="#cache">5. Cache Management</a></li>
+                    <li><a href="#global-options">6. Global Options</a></li>
+                    <li><a href="#subcommands">7. Subcommands</a></li>
+                    <li><a href="#configuration">8. Configuration</a></li>
+                    <li><a href="#how-it-works">9. How It Works</a></li>
+                </ul>
+            </nav>
+
+            <section id="installation">
+                <h2 class="section-title">1. Installation</h2>
+                <h3>Build from Source</h3>
+                <div class="code-block">
+                    <pre><code># Clone the project
+git clone https://github.com/pfinalcub/phpx.git
+cd phpx
+
+# Build
+cargo build --release
+
+# Install (optional)
+sudo cp target/release/phpx /usr/local/bin/</code></pre>
+                </div>
+                <h3>System Requirements</h3>
+                <ul>
+                    <li><strong>Rust</strong>: 1.70+ (for building)</li>
+                    <li><strong>PHP</strong>: 7.4+ (for running tools)</li>
+                    <li><strong>OS</strong>: macOS, Linux, WSL2</li>
+                </ul>
+            </section>
+
+            <section id="quick-start">
+                <h2 class="section-title">2. Quick Start</h2>
+                <p>Run any PHP tool by name. phpx will resolve it from Packagist or GitHub, download and cache the .phar, then execute it.</p>
+                <div class="code-block">
+                    <pre><code># Code analysis
+phpx phpstan analyse src/
+
+# Code formatting
+phpx php-cs-fixer fix file.php
+
+# Packagist vendor/package
+phpx laravel/pint .</code></pre>
+                </div>
+            </section>
+
+            <section id="basic-usage">
+                <h2 class="section-title">3. Basic Usage</h2>
+                <p>Command form: <code>phpx [global options] &lt;tool&gt;[@version] [-- tool args...]</code></p>
+                <h3>Tool identifiers</h3>
+                <ul>
+                    <li>Simple name: <code>phpx phpstan</code></li>
+                    <li>With version: <code>phpx phpstan@^1.10</code>, <code>phpx php-cs-fixer@latest</code></li>
+                    <li>Vendor/package: <code>phpx laravel/pint</code></li>
+                </ul>
+                <h3>Examples</h3>
+                <div class="code-block">
+                    <pre><code>phpx phpstan analyse src/
+phpx php-cs-fixer fix --dry-run .
+phpx phpstan@^1.10 analyse --level=max src/
+phpx laravel/pint .
+phpx php-cs-fixer --help</code></pre>
+                </div>
+            </section>
+
+            <section id="version-management">
+                <h2 class="section-title">4. Version Management</h2>
+                <p>Use <code>@version</code> after the tool name:</p>
+                <ul>
+                    <li><code>@latest</code> – latest stable</li>
+                    <li><code>@^1.10</code> – compatible 1.x (semver)</li>
+                    <li><code>@~2.5.0</code> – 2.5.x</li>
+                    <li><code>@1.9.0</code> – exact version</li>
+                </ul>
+                <p>Multiple versions are cached in parallel (e.g. <code>phpstan@1.9</code> and <code>phpstan@1.10</code>).</p>
+            </section>
+
+            <section id="cache">
+                <h2 class="section-title">5. Cache Management</h2>
+                <p>Tools are cached under <code>~/.cache/phpx</code> by default. Expired entries are cleaned automatically based on <code>cache_ttl</code>.</p>
+                <h3>Commands</h3>
+                <div class="code-block">
+                    <pre><code># Clean cache for one tool
+phpx cache clean phpstan
+
+# Clean all cache
+phpx cache clean
+phpx --clear-cache
+
+# List cached tools
+phpx cache list
+
+# Show cache details for a tool
+phpx cache info phpstan</code></pre>
+                </div>
+            </section>
+
+            <section id="global-options">
+                <h2 class="section-title">6. Global Options</h2>
+                <p>These options can appear anywhere (e.g. <code>phpx --no-cache phpstan ...</code> or <code>phpx cache --verbose list</code>).</p>
+                <table>
+                    <thead>
+                        <tr><th>Option</th><th>Description</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td><code>-c, --config &lt;path&gt;</code></td><td>Use this config file instead of default.</td></tr>
+                        <tr><td><code>--clear-cache</code></td><td>Clear tool cache before run; or clear all cache when used alone.</td></tr>
+                        <tr><td><code>--no-cache</code></td><td>Do not use cache this run (downloads are still cached).</td></tr>
+                        <tr><td><code>--skip-verify</code></td><td>Skip signature/hash verification.</td></tr>
+                        <tr><td><code>--php &lt;path&gt;</code></td><td>PHP binary to run .phar (overrides config <code>default_php_path</code>).</td></tr>
+                        <tr><td><code>-n, --no-local</code></td><td>Ignore project <code>vendor/bin</code> and Composer global.</td></tr>
+                        <tr><td><code>-v, --verbose</code></td><td>Verbose logging.</td></tr>
+                    </tbody>
+                </table>
+                <div class="code-block">
+                    <pre><code>phpx --clear-cache phpstan analyse src/
+phpx --no-cache php-cs-fixer fix file.php
+phpx --php /usr/local/bin/php8.1 phpstan analyse src/
+phpx -c /path/to/config.toml laravel/pint .</code></pre>
+                </div>
+            </section>
+
+            <section id="subcommands">
+                <h2 class="section-title">7. Subcommands</h2>
+                <table>
+                    <thead>
+                        <tr><th>Command</th><th>Description</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td><code>phpx cache clean [tool]</code></td><td>Clean cache for a tool or all.</td></tr>
+                        <tr><td><code>phpx cache list</code></td><td>List cached tools.</td></tr>
+                        <tr><td><code>phpx cache info &lt;tool&gt;</code></td><td>Show cache details for a tool.</td></tr>
+                        <tr><td><code>phpx config get &lt;key&gt;</code></td><td>Get config value (in development).</td></tr>
+                        <tr><td><code>phpx config set &lt;key&gt; &lt;value&gt;</code></td><td>Set config value (in development).</td></tr>
+                        <tr><td><code>phpx self-update</code></td><td>Update phpx (in development).</td></tr>
+                    </tbody>
+                </table>
+            </section>
+
+            <section id="configuration">
+                <h2 class="section-title">8. Configuration</h2>
+                <p>Config file: <code>~/.config/phpx/config.toml</code>. Override with <code>-c, --config &lt;path&gt;</code>.</p>
+                <h3>Config keys</h3>
+                <table>
+                    <thead>
+                        <tr><th>Key</th><th>Description</th><th>Default</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td><code>cache_dir</code></td><td>Cache directory (<code>~</code> expanded)</td><td><code>~/.cache/phpx</code></td></tr>
+                        <tr><td><code>cache_ttl</code></td><td>Cache TTL (seconds); expired entries cleaned on each run</td><td>604800 (7 days)</td></tr>
+                        <tr><td><code>max_cache_size</code></td><td>Max cache size (bytes)</td><td>1GB</td></tr>
+                        <tr><td><code>skip_verify</code></td><td>Skip verification by default</td><td>false</td></tr>
+                        <tr><td><code>default_php_path</code></td><td>Default PHP executable</td><td>(auto-detect)</td></tr>
+                        <tr><td><code>download_mirrors</code></td><td>Mirror list</td><td>Packagist, GitHub</td></tr>
+                    </tbody>
+                </table>
+                <h3>Example config.toml</h3>
+                <div class="code-block">
+                    <pre><code>cache_dir = "~/.cache/phpx"
+cache_ttl = 604800
+max_cache_size = 1073741824
+
+skip_verify = false
+default_php_path = "/usr/bin/php"
+
+download_mirrors = [
+    "https://packagist.org",
+    "https://github.com",
+]</code></pre>
+                </div>
+            </section>
+
+            <section id="how-it-works">
+                <h2 class="section-title">9. How It Works</h2>
+                <ol style="margin-left: 1.5rem; color: #4b5563;">
+                    <li><strong>Load config</strong> – Read config file; cleanup expired cache by TTL.</li>
+                    <li><strong>Parse identifier</strong> – Tool name and version (including <code>vendor/package</code>).</li>
+                    <li><strong>Check local</strong> – Project <code>vendor/bin/</code> and global Composer (unless <code>--no-local</code>).</li>
+                    <li><strong>Check cache</strong> – Look up in <code>~/.cache/phpx</code>.</li>
+                    <li><strong>Resolve source</strong> – Packagist → GitHub Releases → direct URL.</li>
+                    <li><strong>Download & verify</strong> – Fetch .phar; hash/signature check (or <code>--skip-verify</code>).</li>
+                    <li><strong>PHP version check</strong> – If project has <code>composer.json</code> <code>require.php</code>, warn when current PHP does not match.</li>
+                    <li><strong>Execute</strong> – Run .phar with chosen PHP.</li>
+                </ol>
+                <h3>Supported sources</h3>
+                <ul>
+                    <li><strong>Packagist</strong>: <code>phpx phpstan</code> (path dist; falls back to GitHub when only zip)</li>
+                    <li><strong>GitHub Releases</strong>: <code>phpx php-cs-fixer</code>, <code>phpx laravel/pint</code></li>
+                    <li><strong>Direct URL</strong>: Inferred from common release patterns</li>
+                </ul>
+            </section>
+        </div>
+    </main>
+
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-content">
+                <div class="footer-section">
+                    <h3>phpx</h3>
+                    <p>Making PHP tool execution simpler</p>
+                </div>
+                <div class="footer-section">
+                    <h4>Links</h4>
+                    <ul>
+                        <li><a href="https://github.com/pfinalcub/phpx">GitHub</a></li>
+                        <li><a href="index.html">Home</a></li>
+                        <li><a href="usage.html">Usage</a></li>
+                    </ul>
+                </div>
+                <div class="footer-section">
+                    <h4>Resources</h4>
+                    <ul>
+                        <li><a href="https://github.com/pfinalcub/phpx/blob/master/README.md">README</a></li>
+                        <li><a href="https://github.com/pfinalcub/phpx/issues">Issues</a></li>
+                    </ul>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; 2024 phpx. MIT License.</p>
+            </div>
+        </div>
+    </footer>
+
+    <script src="script.js"></script>
+</body>
+</html>

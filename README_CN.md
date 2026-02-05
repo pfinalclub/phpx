@@ -1,219 +1,185 @@
 # phpx
 
-一个类似 npx 的 PHP 工具运行器，用 Rust 编写。
-
-`phpx` 允许您直接运行 PHP 命令行工具（通常是 `.phar` 文件），而无需进行全局或本地的持久化安装。通过智能缓存和版本管理，在保证执行效率的同时，确保开发环境的绝对干净与隔离。
-
-## ✨ 特性
-
-- 🚀 **零污染运行** - 工具运行不污染全局或项目本地环境
-- 📦 **智能缓存** - 自动下载并缓存工具，支持离线使用
-- 🔄 **版本管理** - 支持语义化版本约束和并行版本缓存
-- 🔒 **安全验证** - 支持文件哈希验证（GPG 签名验证开发中）
-- ⚡ **高性能** - 异步下载，接近本地工具的启动速度
-- 🛠️ **多源支持** - 支持 Packagist、GitHub Releases 和直接 URL
-
-## 📦 安装
-
-### 从源码构建
-
-```bash
-# 克隆项目
-git clone https://github.com/your-username/phpx.git
-cd phpx
-
-# 构建项目
-cargo build --release
-
-# 安装到系统路径（可选）
-sudo cp target/release/phpx /usr/local/bin/
-```
-
-### 系统要求
-
-- **Rust**: 1.70+ (用于构建)
-- **PHP**: 7.4+ (用于运行 PHP 工具)
-- **操作系统**: macOS, Linux, WSL2
-
-## 🚀 快速开始
-
-### 基本用法
-
-```bash
-# 运行 PHPStan 进行代码分析
-phpx phpstan analyse src/
-
-# 运行 PHP-CS-Fixer 格式化代码
-phpx php-cs-fixer fix /path/to/file.php
-
-# 使用特定版本的工具
-phpx phpstan@^1.10 analyse --level=max src/
-phpx php-cs-fixer@^3.14 fix --dry-run
-
-# 查看工具帮助
-phpx php-cs-fixer --help
-phpx php-cs-fixer fix --help
-```
-
-### 缓存管理
-
-```bash
-# 清理指定工具的缓存
-phpx cache clean phpstan
-
-# 清理所有缓存
-phpx cache clean
-
-# 查看已缓存的工具
-phpx cache list
-
-# 查看工具缓存详情
-phpx cache info phpstan
-```
-
-## 📋 命令行选项
-
-### 全局选项
-
-```bash
-# 强制清除缓存并重新下载
-phpx --clear-cache phpstan analyse src/
-
-# 本次执行不使用缓存
-phpx --no-cache php-cs-fixer fix file.php
-
-# 跳过安全验证
-phpx --skip-verify phpstan analyse src/
-
-# 指定 PHP 二进制路径
-phpx --php /usr/local/bin/php8.1 phpstan analyse src/
-
-# 忽略项目本地工具，使用远程版本
-phpx --no-local phpstan analyse src/
-
-# 启用详细日志
-phpx --verbose phpstan analyse src/
-```
-
-### 子命令
-
-- `phpx cache clean [tool]` - 清理缓存
-- `phpx cache list` - 列出缓存
-- `phpx cache info <tool>` - 查看缓存详情
-- `phpx config get <key>` - 获取配置（开发中）
-- `phpx config set <key> <value>` - 设置配置（开发中）
-
-## 🔧 工作原理
-
-### 执行流程
-
-1. **解析工具标识符** - 解析工具名和版本约束
-2. **检查本地工具** - 优先检查项目 `vendor/bin/` 和全局 Composer 目录
-3. **检查缓存** - 查找本地缓存中的工具版本
-4. **解析下载源** - 从 Packagist、GitHub Releases 或直接 URL 获取工具信息
-5. **下载工具** - 异步下载 `.phar` 文件到缓存目录
-6. **安全验证** - 验证文件哈希（GPG 签名验证开发中）
-7. **执行工具** - 使用系统 PHP 执行下载的工具
-
-### 支持的源类型
-
-- **Packagist**: `phpx phpstan`
-- **GitHub Releases**: `phpx php-cs-fixer`
-- **直接 URL**: 自动推断常见发布模式
-
-## ⚙️ 配置
-
-### 配置文件位置
-
-- macOS/Linux: `~/.config/phpx/config.toml`
-- Windows: `%APPDATA%/phpx/config.toml`
-
-### 配置示例
-
-```toml
-# 缓存配置
-cache_dir = "~/.cache/phpx"
-cache_ttl = 604800  # 7天
-max_cache_size = 1073741824  # 1GB
-
-# 安全配置
-skip_verify = false
-
-# PHP 配置
-default_php_path = "/usr/bin/php"
-
-# 下载镜像源
-download_mirrors = [
-    "https://packagist.org",
-    "https://github.com",
-]
-```
-
-## 🛠️ 开发
-
-### 项目结构
-
-```
-src/
-├── main.rs          # 程序入口点
-├── lib.rs           # 模块声明
-├── cli.rs           # 命令行接口
-├── runner.rs        # 核心执行流程
-├── resolver.rs      # 工具解析器
-├── download.rs      # 文件下载
-├── cache.rs         # 缓存管理
-├── executor.rs      # PHP 执行器
-├── config.rs        # 配置管理
-├── security.rs      # 安全验证
-└── error.rs         # 错误处理
-```
-
-### 构建和测试
-
-```bash
-# 开发构建
-cargo build
-
-# 发布构建
-cargo build --release
-
-# 运行测试
-cargo test
-
-# 代码检查
-cargo clippy
-
-# 格式化代码
-cargo fmt
-```
-
-## 🤝 贡献
-
-欢迎贡献代码！请查看 [CONTRIBUTING.md](CONTRIBUTING.md) 了解详情。
-
-### 开发计划
-
-- [x] **Phase 1**: 核心功能实现（已完成）
-- [ ] **Phase 2**: 安全验证和配置系统完善
-- [ ] **Phase 3**: 高级功能和用户体验优化
-
-## 📄 许可证
-
-本项目采用 MIT 许可证。详见 [LICENSE](LICENSE) 文件。
-
-## 🙏 致谢
-
-- 灵感来源于 [npx](https://github.com/npm/npx)
-- 借鉴了 [phive](https://github.com/phar-io/phive) 的设计理念
-
-## 📞 支持
-
-如果您遇到问题或有建议，请：
-
-1. 查看 [Issues](https://github.com/your-username/phpx/issues)
-2. 提交新的 Issue
-3. 或通过邮件联系我们
+> **PHP 缺的那块拼图：工具运行器。**
+> 不安装也能跑 PHP 命令行工具。版本可锁、可复现、CI 友好。
 
 ---
 
-**phpx** - 让 PHP 工具运行更简单！ 🚀
+## 为什么要有 phpx（真正的问题）
+
+用 PHP 久了，这些痛你一定懂：
+
+* `composer global` 污染环境，团队间难以一致
+* `vendor/bin` 把工具绑进项目依赖，升级成本爆炸
+* CI 和本机悄悄跑着**不同版本**的工具
+* 排查工具版本漂移耗时间，还带来误报
+
+**phpx 只做一件事，并且做狠：**
+
+> 保证 PHP 命令行工具在本地、CI、任何地方都用**同一版本**运行。
+
+不全局安装。不绑 Composer。没有借口。
+
+---
+
+## phpx 是什么（以及不是什么）
+
+### phpx **是**
+
+* 零安装的 **PHP 工具运行器**（类似 `npx`，但面向 PHP）
+* 单一静态二进制（快、可预期、可携带）
+* 为以下工具提供版本锁定的执行层：
+
+  * phpstan
+  * php-cs-fixer
+  * psalm
+  * rector
+  * pest
+
+### phpx **不是**
+
+* ❌ 框架
+* ❌ 包管理器替代品
+* ❌ 在 Composer 上再包一层
+
+它只干一件事：**把 PHP 工具跑对**。
+
+---
+
+## 十秒示例
+
+```bash
+# 不安装任何东西，直接跑 phpstan
+phpx phpstan@1.11 analyse src
+```
+
+就这么多。
+
+* 没有就自动下载
+* 本地缓存
+* 按你指定的版本执行
+
+---
+
+## 为什么不用 Composer 就行？
+
+因为 Composer 解决的是**另一类**问题。
+
+| 问题               | Composer   | phpx      |
+| ------------------ | ---------- | --------- |
+| 项目依赖           | ✅          | ❌         |
+| 工具版本隔离       | ⚠️ 很折腾  | ✅ 很简单  |
+| 全局安装           | ❌ 易碎     | ✅ 不需要  |
+| CI 可复现          | ⚠️ 手动搞  | ✅ 开箱即用 |
+| 临时跑一下工具     | ❌          | ✅         |
+
+**一句话：**
+
+> 工具若不是运行时的一部分，就不该进依赖图。
+
+---
+
+## 为 CI 而生
+
+phpx 的设计前提是：CI 会先崩。
+
+示例（GitHub Actions）：
+
+```yaml
+- name: Run PHPStan
+  run: |
+    phpx phpstan@1.11 analyse src
+```
+
+不用装环境。不用 Composer 骚操作。没有版本漂移。
+
+---
+
+## 确定性构建（规划中）
+
+phpx 正在向 **基于 lockfile 的工具链** 演进。
+
+```bash
+phpx phpstan
+```
+
+届时 phpx 会从「运行器」变成**基础设施**。
+
+---
+
+## 安装
+
+```bash
+curl -fsSL https://github.com/pfinalclub/phpx/releases/latest/download/phpx \
+  -o /usr/local/bin/phpx && chmod +x /usr/local/bin/phpx
+```
+
+（Windows 与 macOS 二进制见 Releases。）
+
+---
+
+## 支持的来源
+
+phpx 可从以下来源拉取工具：
+
+* Packagist（phar 包）
+* GitHub Releases
+* 直接 URL
+
+所有下载都会缓存并做校验和验证。
+
+---
+
+## 什么时候该用 phpx
+
+适合用 phpx 的情况：
+
+* 你在多台机器上维护 PHP 项目
+* CI 老因工具版本不一致挂掉
+* 你受够了 `composer global`
+* 你在做自动化、Agent 或临时环境
+
+不适合用 phpx 的情况：
+
+* 你要的是又一个框架
+* 你需要 GUI
+* 你喜欢排查环境问题
+
+---
+
+## 设计原则
+
+* **一个二进制**
+* **无后台服务**
+* **无隐藏状态**
+* **出错就大声报**
+
+phpx 宁可无聊、可预期，也不要聪明抽象。
+
+---
+
+## 状态
+
+phpx 在持续开发，并在真实项目中使用。
+
+刻意保持小巧，表面积极简。
+
+想要新功能，请带上真实场景。
+
+---
+
+## 贡献
+
+欢迎提 Issue 和 PR，尤其欢迎：
+
+* CI 集成方案
+* 单工具文档（phpstan、psalm、rector 等）
+* Lockfile 设计反馈
+
+详细说明见 [CONTRIBUTING_CN.md](CONTRIBUTING_CN.md)。
+
+---
+
+## 许可证
+
+MIT

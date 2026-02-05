@@ -17,16 +17,20 @@ pub struct Runner {
 }
 
 impl Runner {
-    pub fn new() -> Result<Self> {
-        let config = Config::default(); // TODO: 实现配置加载
-        let cache_manager = CacheManager::new(config.cache_dir.clone())?;
+    /// 使用可选配置文件路径创建 Runner；无则使用默认路径，加载失败则回退默认配置
+    pub fn new(config_path: Option<PathBuf>) -> Result<Self> {
+        let config = Config::load(config_path).map_err(|e| crate::error::Error::Config(e.to_string()))?;
+        let skip_verify = config.skip_verify;
+        let mut cache_manager = CacheManager::new(config.cache_dir.clone())?;
+        // 按配置 TTL 清理过期缓存（每次创建 Runner 时执行一次）
+        cache_manager.cleanup_old_entries(config.cache_ttl)?;
 
         Ok(Self {
             config,
             cache_manager,
             downloader: Downloader::new(),
             resolver: ToolResolver::new(),
-            security_manager: SecurityManager::new(),
+            security_manager: SecurityManager::new(skip_verify),
             executor: Executor::new(),
         })
     }
@@ -44,6 +48,11 @@ impl Runner {
     ) -> Result<()> {
         tracing::info!("Running tool: {}", tool_identifier);
 
+        // 命令行 --php 优先，否则使用配置中的 default_php_path（克隆避免长期借用 self）
+        let effective_php = php_path
+            .cloned()
+            .or_else(|| self.config.default_php_path.clone());
+
         // 解析工具标识符
         let identifier = self.resolver.parse_identifier(tool_identifier)?;
 
@@ -51,7 +60,7 @@ impl Runner {
         if !no_local {
             if let Some(local_path) = self.find_local_tool(&identifier.name) {
                 tracing::info!("Found local tool at: {:?}", local_path);
-                return self.executor.execute_phar(&local_path, args, php_path);
+                return self.executor.execute_phar(&local_path, args, effective_php.as_ref());
             }
         }
 
@@ -72,7 +81,7 @@ impl Runner {
                         .is_ok()
                     {
                         tracing::info!("Using cached tool: {}@{}", identifier.name, version);
-                        return self.executor.execute_phar(&file_path, args, php_path);
+                        return self.executor.execute_phar(&file_path, args, effective_php.as_ref());
                     }
                 }
             }
@@ -84,7 +93,7 @@ impl Runner {
             .download_and_cache_tool(&tool_info, skip_verify)
             .await?;
 
-        self.executor.execute_phar(&downloaded_path, args, php_path)
+        self.executor.execute_phar(&downloaded_path, args, effective_php.as_ref())
     }
 
     fn find_local_tool(&self, tool_name: &str) -> Option<PathBuf> {

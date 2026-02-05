@@ -1,6 +1,35 @@
 use crate::error::{Error, Result};
-use std::path::PathBuf;
+use semver::VersionReq;
+use serde::Deserialize;
+use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
+
+/// composer.json 中与 PHP 版本相关的字段（仅解析所需部分）
+#[derive(Deserialize)]
+struct ComposerJson {
+    #[serde(default)]
+    require: ComposerRequire,
+    #[serde(default)]
+    config: ComposerConfig,
+}
+
+#[derive(Deserialize, Default)]
+struct ComposerRequire {
+    #[serde(rename = "php")]
+    php_constraint: Option<String>,
+}
+
+#[derive(Deserialize, Default)]
+struct ComposerConfig {
+    #[serde(default)]
+    platform: ComposerPlatform,
+}
+
+#[derive(Deserialize, Default)]
+struct ComposerPlatform {
+    #[serde(rename = "php")]
+    php_version: Option<String>,
+}
 
 pub struct Executor;
 
@@ -23,13 +52,28 @@ impl Executor {
     ) -> Result<()> {
         let php_binary = self.find_php_binary(php_path)?;
 
+        // 若项目有 composer.json 的 PHP 约束且未指定 --php，校验当前 PHP 是否满足并打日志
+        if php_path.is_none() {
+            if let Some(constraint) = self.detect_project_php_version() {
+                if let Some(actual) = Self::get_php_version(&php_binary) {
+                    if !Self::php_version_matches_constraint(&actual, &constraint) {
+                        tracing::warn!(
+                            "Project composer.json requires PHP {}, but current PHP is {}",
+                            constraint,
+                            actual
+                        );
+                    }
+                }
+            }
+        }
+
         tracing::info!(
             "Executing {} with PHP: {:?}",
             phar_path.display(),
             php_binary
         );
 
-        let mut command = Command::new(php_binary);
+        let mut command = Command::new(&php_binary);
         command.arg(phar_path);
         command.args(args);
 
@@ -46,10 +90,8 @@ impl Executor {
         if status.success() {
             Ok(())
         } else {
-            Err(Error::Execution(format!(
-                "Tool execution failed with exit code: {}",
-                status.code().unwrap_or(-1)
-            )))
+            let code = status.code().unwrap_or(1);
+            Err(Error::ExecutionFailed(code))
         }
     }
 
@@ -83,8 +125,75 @@ impl Executor {
         ))
     }
 
+    /// 从当前目录向上查找 composer.json，解析 require.php 或 config.platform.php，返回 PHP 版本约束字符串
     pub fn detect_project_php_version(&self) -> Option<String> {
-        // TODO: 从 composer.json 检测 PHP 版本约束
-        None
+        let composer_path = Self::find_composer_json()?;
+        let content = std::fs::read_to_string(&composer_path).ok()?;
+        let composer: ComposerJson = serde_json::from_str(&content).ok()?;
+        composer
+            .require
+            .php_constraint
+            .filter(|s| !s.is_empty())
+            .or(composer.config.platform.php_version)
+            .filter(|s| !s.is_empty())
+    }
+
+    /// 获取指定 PHP 可执行文件的版本号（如 "8.2.1"）；若有后缀如 -ubuntu 则只取主版本段
+    pub fn get_php_version(php_binary: &Path) -> Option<String> {
+        let out = Command::new(php_binary)
+            .arg("-r")
+            .arg("echo PHP_VERSION;")
+            .output()
+            .ok()?;
+        if !out.status.success() {
+            return None;
+        }
+        let v = String::from_utf8_lossy(&out.stdout);
+        let v = v.trim();
+        if v.is_empty() {
+            return None;
+        }
+        // 只保留主版本号段（如 8.2.1），去掉 -ubuntu、-dev 等后缀以便 semver 解析
+        let core: String = v
+            .chars()
+            .take_while(|c| c.is_ascii_digit() || *c == '.')
+            .collect();
+        if core.is_empty() {
+            return None;
+        }
+        Some(core)
+    }
+
+    /// 检查 PHP 版本是否满足 composer 约束（require.php 或 config.platform.php）
+    pub fn php_version_matches_constraint(version: &str, constraint: &str) -> bool {
+        let constraint = constraint.trim();
+        if constraint.is_empty() {
+            return true;
+        }
+        // 尝试解析为版本约束（^8.2.0, >=7.4 等）
+        if let Ok(req) = VersionReq::parse(constraint) {
+            if let Ok(v) = semver::Version::parse(version) {
+                return req.matches(&v);
+            }
+        }
+        // 可能是纯版本号如 8.2.0，当作最低版本
+        if let Ok(min_ver) = semver::Version::parse(constraint) {
+            if let Ok(actual) = semver::Version::parse(version) {
+                return actual >= min_ver;
+            }
+        }
+        false
+    }
+
+    /// 从当前目录向上查找直到找到 composer.json 或到达根目录
+    fn find_composer_json() -> Option<PathBuf> {
+        let mut dir = std::env::current_dir().ok()?;
+        loop {
+            let candidate = dir.join("composer.json");
+            if candidate.exists() {
+                return Some(candidate);
+            }
+            dir = dir.parent()?.to_path_buf();
+        }
     }
 }

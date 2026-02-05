@@ -26,6 +26,10 @@ pub enum Error {
     #[error("Execution error: {0}")]
     Execution(String),
 
+    /// 工具进程以非零退出码结束（如 lint 报错），仅用于传播退出码，无需再打印错误文案
+    #[error("Tool exited with code {0}")]
+    ExecutionFailed(i32),
+
     #[error("Invalid tool identifier: {0}")]
     InvalidToolIdentifier(String),
 

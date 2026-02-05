@@ -1,222 +1,185 @@
 # phpx
 
-[中文](https://github.com/pfinalclub/phpx/blob/master/README_CN.md)
-
-
-An npx-like tool for PHP, written in Rust.
-
-`phpx` allows you to run PHP command-line tools (typically `.phar` files) without requiring global or local persistent installation. Through intelligent caching and version management, it ensures execution efficiency while maintaining a clean and isolated development environment.
-
-## ✨ Features
-
-- 🚀 **Zero Pollution** - Tools run without polluting global or project local environments
-- 📦 **Smart Caching** - Automatic download and caching of tools, supporting offline usage
-- 🔄 **Version Management** - Support for semantic version constraints and parallel version caching
-- 🔒 **Security Verification** - File hash verification support (GPG signature verification in development)
-- ⚡ **High Performance** - Asynchronous downloads with near-native tool startup speed
-- 🛠️ **Multi-Source Support** - Support for Packagist, GitHub Releases, and direct URLs
-
-## 📦 Installation
-
-### Build from Source
-
-```bash
-# Clone the project
-git clone https://github.com/pfinalcub/phpx.git
-cd phpx
-
-# Build the project
-cargo build --release
-
-# Install to system path (optional)
-sudo cp target/release/phpx /usr/local/bin/
-```
-
-### System Requirements
-
-- **Rust**: 1.70+ (for building)
-- **PHP**: 7.4+ (for running PHP tools)
-- **Operating Systems**: macOS, Linux, WSL2
-
-## 🚀 Quick Start
-
-### Basic Usage
-
-```bash
-# Run PHPStan for code analysis
-phpx phpstan analyse src/
-
-# Run PHP-CS-Fixer to format code
-phpx php-cs-fixer fix /path/to/file.php
-
-# Use specific tool versions
-phpx phpstan@^1.10 analyse --level=max src/
-phpx php-cs-fixer@^3.14 fix --dry-run
-
-# View tool help
-phpx php-cs-fixer --help
-phpx php-cs-fixer fix --help
-```
-
-### Cache Management
-
-```bash
-# Clean cache for a specific tool
-phpx cache clean phpstan
-
-# Clean all cache
-phpx cache clean
-
-# List cached tools
-phpx cache list
-
-# View cache details for a tool
-phpx cache info phpstan
-```
-
-## 📋 Command Line Options
-
-### Global Options
-
-```bash
-# Force clear cache and re-download
-phpx --clear-cache phpstan analyse src/
-
-# Don't use cache for this execution
-phpx --no-cache php-cs-fixer fix file.php
-
-# Skip security verification
-phpx --skip-verify phpstan analyse src/
-
-# Specify PHP binary path
-phpx --php /usr/local/bin/php8.1 phpstan analyse src/
-
-# Ignore local project tools, use remote versions
-phpx --no-local phpstan analyse src/
-
-# Enable verbose logging
-phpx --verbose phpstan analyse src/
-```
-
-### Subcommands
-
-- `phpx cache clean [tool]` - Clean cache
-- `phpx cache list` - List cached tools
-- `phpx cache info <tool>` - View cache details
-- `phpx config get <key>` - Get configuration (in development)
-- `phpx config set <key> <value>` - Set configuration (in development)
-
-## 🔧 How It Works
-
-### Execution Flow
-
-1. **Parse Tool Identifier** - Parse tool name and version constraints
-2. **Check Local Tools** - Prioritize checking project `vendor/bin/` and global Composer directories
-3. **Check Cache** - Look for tool versions in local cache
-4. **Resolve Download Source** - Get tool information from Packagist, GitHub Releases, or direct URLs
-5. **Download Tool** - Asynchronously download `.phar` file to cache directory
-6. **Security Verification** - Verify file hash (GPG signature verification in development)
-7. **Execute Tool** - Use system PHP to execute the downloaded tool
-
-### Supported Source Types
-
-- **Packagist**: `phpx phpstan`
-- **GitHub Releases**: `phpx php-cs-fixer`
-- **Direct URL**: Automatically infer common release patterns
-
-## ⚙️ Configuration
-
-### Configuration File Locations
-
-- macOS/Linux: `~/.config/phpx/config.toml`
-- Windows: `%APPDATA%/phpx/config.toml`
-
-### Configuration Example
-
-```toml
-# Cache configuration
-cache_dir = "~/.cache/phpx"
-cache_ttl = 604800  # 7 days
-max_cache_size = 1073741824  # 1GB
-
-# Security configuration
-skip_verify = false
-
-# PHP configuration
-default_php_path = "/usr/bin/php"
-
-# Download mirrors
-download_mirrors = [
-    "https://packagist.org",
-    "https://github.com",
-]
-```
-
-## 🛠️ Development
-
-### Project Structure
-
-```
-src/
-├── main.rs          # Program entry point
-├── lib.rs           # Module declarations
-├── cli.rs           # Command-line interface
-├── runner.rs        # Core execution flow
-├── resolver.rs      # Tool resolver
-├── download.rs      # File download
-├── cache.rs         # Cache management
-├── executor.rs      # PHP executor
-├── config.rs        # Configuration management
-├── security.rs      # Security verification
-└── error.rs         # Error handling
-```
-
-### Building and Testing
-
-```bash
-# Development build
-cargo build
-
-# Release build
-cargo build --release
-
-# Run tests
-cargo test
-
-# Code linting
-cargo clippy
-
-# Code formatting
-cargo fmt
-```
-
-## 🤝 Contributing
-
-We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for details.
-
-### Development Plan
-
-- [x] **Phase 1**: Core functionality implementation (completed)
-- [ ] **Phase 2**: Security verification and configuration system improvements
-- [ ] **Phase 3**: Advanced features and user experience optimization
-
-## 📄 License
-
-This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
-
-## 🙏 Acknowledgments
-
-- Inspired by [npx](https://github.com/npm/npx)
-- Design concepts borrowed from [phive](https://github.com/phar-io/phive)
-
-## 📞 Support
-
-If you encounter issues or have suggestions, please:
-
-1. Check [Issues](https://github.com/pfinalcub/phpx/issues)
-2. Submit a new Issue
-3. Or contact us via email
+> **The missing tool runner for PHP.**
+> Run PHP CLI tools without installing them. Version-locked. Reproducible. CI-safe.
 
 ---
 
-**phpx** - Making PHP tool execution simpler! 🚀
+## Why phpx exists (the real problem)
+
+If you work with PHP long enough, you already know this pain:
+
+* `composer global` pollutes machines and breaks across teams
+* `vendor/bin` ties tools to project deps (and explodes upgrade cost)
+* CI and local environments silently run **different tool versions**
+* Debugging tool-version drift wastes hours and creates false failures
+
+**phpx fixes one thing, brutally well:**
+
+> It guarantees that PHP CLI tools run with the exact same version — locally, in CI, everywhere.
+
+No global installs. No Composer coupling. No excuses.
+
+---
+
+## What phpx is (and is not)
+
+### phpx **is**
+
+* A zero-install **PHP tool runner** (like `npx`, but for PHP)
+* A single static binary (fast, predictable, portable)
+* A version-locked execution layer for tools like:
+
+  * phpstan
+  * php-cs-fixer
+  * psalm
+  * rector
+  * pest
+
+### phpx **is not**
+
+* ❌ A framework
+* ❌ A package manager replacement
+* ❌ Another abstraction over Composer
+
+It does one job: **run PHP tools correctly**.
+
+---
+
+## The 10-second example
+
+```bash
+# Run phpstan without installing anything
+phpx phpstan@1.11 analyse src
+```
+
+That’s it.
+
+* phpstan is downloaded if missing
+* cached locally
+* executed with the exact version you requested
+
+---
+
+## Why not just use Composer?
+
+Because Composer solves a *different* problem.
+
+| Problem                | Composer   | phpx      |
+| ---------------------- | ---------- | --------- |
+| Project dependencies   | ✅          | ❌         |
+| Tool version isolation | ⚠️ painful | ✅ trivial |
+| Global installs        | ❌ fragile  | ✅ avoided |
+| CI reproducibility     | ⚠️ manual  | ✅ default |
+| Temporary tool runs    | ❌          | ✅         |
+
+**Rule of thumb**:
+
+> If the tool is not part of your runtime, it should not live in your dependency graph.
+
+---
+
+## CI-first by design
+
+phpx was designed assuming CI will break first.
+
+Example (GitHub Actions):
+
+```yaml
+- name: Run PHPStan
+  run: |
+    phpx phpstan@1.11 analyse src
+```
+
+No setup steps. No Composer hacks. No version drift.
+
+---
+
+## Deterministic builds (coming next)
+
+phpx is moving toward **lockfile-based toolchains**.
+
+
+```bash
+phpx phpstan
+```
+
+This turns phpx from a runner into **infrastructure**.
+
+---
+
+## Installation
+
+```bash
+curl -fsSL https://github.com/pfinalclub/phpx/releases/latest/download/phpx \
+  -o /usr/local/bin/phpx && chmod +x /usr/local/bin/phpx
+```
+
+(Windows and macOS binaries are provided in releases.)
+
+---
+
+## Supported sources
+
+phpx can fetch tools from:
+
+* Packagist (phar packages)
+* GitHub Releases
+* Direct URLs
+
+All downloads are cached and checksum-verified.
+
+---
+
+## When you should use phpx
+
+Use phpx if:
+
+* You maintain PHP projects across multiple machines
+* Your CI breaks because of tool version mismatch
+* You are tired of `composer global`
+* You build automation, agents, or ephemeral environments
+
+Don’t use phpx if:
+
+* You want another framework
+* You expect a GUI
+* You enjoy debugging environment issues
+
+---
+
+## Design philosophy
+
+* **One binary**
+* **No background services**
+* **No magic state**
+* **Fail loudly**
+
+phpx prefers boring, predictable behavior over clever abstractions.
+
+---
+
+## Status
+
+phpx is actively developed and used in real projects.
+
+It is intentionally small.
+Its surface area is kept minimal.
+
+If you want features, bring real-world use cases.
+
+---
+
+## Contributing
+
+Issues and PRs are welcome — especially:
+
+* CI integrations
+* Tool-specific docs (phpstan, psalm, rector, etc.)
+* Lockfile design feedback
+
+---
+
+## License
+
+MIT

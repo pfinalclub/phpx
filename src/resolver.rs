@@ -144,16 +144,24 @@ impl ToolResolver {
             self.find_matching_version(&packagist_response.package.versions, identifier)?;
 
         let version_info = &packagist_response.package.versions[&version];
+        let dist = &version_info.dist;
 
-        // 检查是否有 zip 文件下载链接
-        if version_info.dist.dist_type != "zip" {
-            return Err(Error::ToolNotFound(
-                "Only zip distributions are supported".to_string(),
-            ));
-        }
-
-        // 使用 Packagist 提供的下载 URL
-        let download_url = version_info.dist.url.clone();
+        // 支持 path 类型（单文件，多为 .phar）；zip 为源码包，无法直接作为 phar 运行，回退到 GitHub 等源
+        let download_url = match dist.dist_type.as_str() {
+            "path" => dist.url.clone(),
+            "zip" => {
+                return Err(Error::ToolNotFound(format!(
+                    "Packagist 仅提供 zip 源码包，无法直接运行；将尝试 GitHub 等源解析 {}",
+                    identifier.name
+                )));
+            }
+            other => {
+                return Err(Error::ToolNotFound(format!(
+                    "Packagist 分发类型 \"{}\" 暂不支持，将尝试 GitHub 等源",
+                    other
+                )));
+            }
+        };
 
         Ok(ToolInfo {
             name: identifier.name.clone(),
@@ -164,21 +172,22 @@ impl ToolResolver {
         })
     }
 
+    /// 将工具名解析为 GitHub (owner, repo)。支持 vendor/package 如 laravel/pint -> (laravel, pint)
+    fn github_owner_repo(name: &str) -> (String, String) {
+        if let Some((owner, repo)) = name.split_once('/') {
+            (owner.to_string(), repo.to_string())
+        } else {
+            (name.to_string(), name.to_string())
+        }
+    }
+
     async fn resolve_from_github(&self, identifier: &ToolIdentifier) -> Result<ToolInfo> {
-        // 尝试从 GitHub Releases 解析
+        let (owner, repo) = Self::github_owner_repo(&identifier.name);
+        // 尝试从 GitHub Releases 解析：owner/repo 格式
         let github_urls = vec![
-            format!(
-                "https://api.github.com/repos/{}/{}/releases",
-                identifier.name, identifier.name
-            ),
-            format!(
-                "https://api.github.com/repos/{}/php-{}/releases",
-                identifier.name, identifier.name
-            ),
-            format!(
-                "https://api.github.com/repos/php-{}/{}/releases",
-                identifier.name, identifier.name
-            ),
+            format!("https://api.github.com/repos/{}/{}/releases", owner, repo),
+            format!("https://api.github.com/repos/{}/php-{}/releases", owner, repo),
+            format!("https://api.github.com/repos/php-{}/{}/releases", owner, repo),
         ];
 
         for url in github_urls {
@@ -211,19 +220,20 @@ impl ToolResolver {
     }
 
     async fn resolve_from_direct_url(&self, identifier: &ToolIdentifier) -> Result<ToolInfo> {
-        // 尝试常见的直接下载 URL 模式
+        let (owner, repo) = Self::github_owner_repo(&identifier.name);
+        // 尝试常见的直接下载 URL：owner/repo，下载文件名多为 repo.phar 或 vendor-repo.phar
         let direct_urls = vec![
             format!(
                 "https://github.com/{}/{}/releases/latest/download/{}.phar",
-                identifier.name, identifier.name, identifier.name
+                owner, repo, repo
             ),
             format!(
-                "https://github.com/{}/php-{}/releases/latest/download/{}.phar",
-                identifier.name, identifier.name, identifier.name
+                "https://github.com/{}/{}/releases/latest/download/{}-{}.phar",
+                owner, repo, owner, repo
             ),
             format!(
-                "https://github.com/php-{}/{}/releases/latest/download/{}.phar",
-                identifier.name, identifier.name, identifier.name
+                "https://github.com/{}/{}/releases/latest/download/{}.phar",
+                owner, repo, identifier.name.replace('/', "-")
             ),
         ];
 

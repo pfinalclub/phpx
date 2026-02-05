@@ -1,16 +1,19 @@
 use crate::error::{Error, Result};
 
-pub struct SecurityManager;
+pub struct SecurityManager {
+    /// 是否默认跳过签名/哈希验证（来自配置）
+    skip_verify: bool,
+}
 
 impl Default for SecurityManager {
     fn default() -> Self {
-        Self::new()
+        Self::new(false)
     }
 }
 
 impl SecurityManager {
-    pub fn new() -> Self {
-        Self
+    pub fn new(skip_verify: bool) -> Self {
+        Self { skip_verify }
     }
 
     pub fn verify_signature(
@@ -45,7 +48,6 @@ impl SecurityManager {
     }
 
     pub fn skip_verification(&self) -> bool {
-        // TODO: 从配置中读取是否跳过验证
-        false
+        self.skip_verify
     }
 }

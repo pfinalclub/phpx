@@ -24,22 +24,28 @@ pub struct Cli {
     #[arg(long, short, global = true)]
     pub verbose: bool,
 
-    #[arg(long, global = true)]
+    /// Use the given config file instead of ~/.config/phpx/config.toml
+    #[arg(long, short = 'c', global = true)]
     pub config: Option<PathBuf>,
 
-    #[arg(long)]
+    /// Clear this tool's cache (or all cache if no tool) before running
+    #[arg(long, global = true)]
     pub clear_cache: bool,
 
-    #[arg(long)]
+    /// Do not use cache for this run (still caches after download)
+    #[arg(long, global = true)]
     pub no_cache: bool,
 
-    #[arg(long)]
+    /// Skip signature/hash verification for this run
+    #[arg(long, global = true)]
     pub skip_verify: bool,
 
-    #[arg(long)]
+    /// PHP binary path to run the .phar (overrides config default_php_path)
+    #[arg(long, global = true)]
     pub php: Option<PathBuf>,
 
-    #[arg(long, short = 'n')]
+    /// Ignore local vendor/bin and composer global, use cache or remote only
+    #[arg(long, short = 'n', global = true)]
     pub no_local: bool,
 }
 
@@ -115,6 +121,12 @@ impl Cli {
                     self.self_update()
                 }
             }
+        } else if self.clear_cache && self.tool.is_none() {
+            // 仅传入 --clear-cache 时，清理全部缓存（等同 phpx cache clean）
+            tracing::info!("Clearing all cache (--clear-cache without tool)");
+            self.clean_cache(None)?;
+            println!("Cache cleared.");
+            Ok(())
         } else if let Some(ref tool) = self.tool {
             tracing::info!("Running tool: {} with args: {:?}", tool, self.args);
             self.run_tool(
@@ -128,7 +140,6 @@ impl Cli {
             )
             .await
         } else {
-            // 显示帮助信息
             println!("No command specified. Use --help for usage information.");
             Ok(())
         }
@@ -161,33 +172,24 @@ impl Cli {
             options.skip_verify
         );
 
-        // 创建并运行工具
-        let mut runner = Runner::new()?;
+        // 创建并运行工具（传入可选配置文件路径以覆盖默认 ~/.config/phpx/config.toml）
+        let mut runner = Runner::new(self.config.clone())?;
         runner.run_tool_with_options(tool, args, &options).await
     }
 
     fn clean_cache(&self, tool: Option<String>) -> Result<()> {
-        match tool {
-            Some(tool_name) => {
-                println!("Cleaning cache for tool: {}", tool_name);
-            }
-            None => {
-                println!("Cleaning all cache");
-            }
-        }
-        Ok(())
+        let mut runner = Runner::new(self.config.clone())?;
+        runner.clean_cache(tool)
     }
 
     fn list_cache(&self) -> Result<()> {
-        println!("Listing cached tools:");
-        println!("(No cached tools found)");
-        Ok(())
+        let runner = Runner::new(self.config.clone())?;
+        runner.list_cache()
     }
 
     fn cache_info(&self, tool: &str) -> Result<()> {
-        println!("Cache info for tool: {}", tool);
-        println!("(No cache information available)");
-        Ok(())
+        let runner = Runner::new(self.config.clone())?;
+        runner.cache_info(tool)
     }
 
     fn get_config(&self, key: &str) -> Result<()> {

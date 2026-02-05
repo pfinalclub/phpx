@@ -1,13 +1,28 @@
 use crate::error::Result;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::collections::HashMap;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
+
+/// 将 PathBuf 序列化为字符串，确保 cache.json 可跨平台正确读写
+mod path_serde {
+    use super::*;
+
+    pub fn serialize<S: Serializer>(path: &Path, s: S) -> std::result::Result<S::Ok, S::Error> {
+        path.to_string_lossy().serialize(s)
+    }
+
+    pub fn deserialize<'de, D: Deserializer<'de>>(d: D) -> std::result::Result<PathBuf, D::Error> {
+        let s = String::deserialize(d)?;
+        Ok(PathBuf::from(s))
+    }
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CacheEntry {
     pub tool_name: String,
     pub version: String,
+    #[serde(with = "path_serde")]
     pub file_path: PathBuf,
     pub download_url: String,
     pub file_hash: Option<String>,
