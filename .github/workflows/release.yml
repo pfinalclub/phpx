@@ -78,6 +78,7 @@ jobs:
 
       - name: Get binary size
         id: binary-size
+        shell: bash
         run: |
           if [ "${{ matrix.os }}" = "windows-latest" ]; then
             SIZE=$(stat -c%s target/${{ matrix.target }}/release/phpx.exe)
@@ -90,6 +91,7 @@ jobs:
           echo "size=$SIZE" >> $GITHUB_OUTPUT
 
       - name: Create checksum
+        shell: bash
         run: |
           if [ "${{ matrix.os }}" = "windows-latest" ]; then
             sha256sum target/${{ matrix.target }}/release/phpx.exe > ${{ matrix.artifact_name }}.sha256
@@ -127,15 +129,18 @@ jobs:
         uses: actions/download-artifact@v4
 
       - name: List downloaded files
+        shell: bash
         run: find . -type f -name "phpx*" | sort
 
       - name: Verify Linux binary
+        shell: bash
         run: |
           chmod +x phpx-linux-x86_64/phpx
           ./phpx-linux-x86_64/phpx --version
 
       - name: Verify macOS binary (x86_64)
         if: always()
+        shell: bash
         run: |
           if [ -f "phpx-macos-x86_64/phpx" ]; then
             chmod +x phpx-macos-x86_64/phpx
@@ -143,6 +148,7 @@ jobs:
           fi
 
       - name: Verify checksums
+        shell: bash
         run: |
           for dir in phpx-*; do
             if [ -f "$dir/$dir.sha256" ]; then
