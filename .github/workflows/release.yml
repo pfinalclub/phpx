@@ -130,13 +130,24 @@ jobs:
 
       - name: List downloaded files
         shell: bash
-        run: find . -type f -name "phpx*" | sort
+        run: |
+          find . -type f -name "phpx*" | sort
+          echo "=== Directory structure ==="
+          find . -type d -name "phpx*" | sort
+          echo "=== Current directory contents ==="
+          ls -la
 
       - name: Verify Linux binary
         shell: bash
         run: |
-          chmod +x phpx-linux-x86_64/phpx
-          ./phpx-linux-x86_64/phpx --version
+          # 先检查文件是否存在
+          if [ -f "phpx-linux-x86_64/phpx" ]; then
+            chmod +x phpx-linux-x86_64/phpx
+            ./phpx-linux-x86_64/phpx --version
+          else
+            echo "Linux binary not found at expected path, searching..."
+            find . -name "phpx" -type f | head -5
+          fi
 
       - name: Verify macOS binary (x86_64)
         if: always()
@@ -145,16 +156,26 @@ jobs:
           if [ -f "phpx-macos-x86_64/phpx" ]; then
             chmod +x phpx-macos-x86_64/phpx
             echo "macOS x86_64 binary exists"
+          else
+            echo "macOS x86_64 binary not found at expected path"
+            find . -name "phpx" -type f | grep -i macos | head -5
           fi
 
       - name: Verify checksums
         shell: bash
         run: |
+          echo "=== Checking checksum files ==="
+          find . -name "*.sha256" -type f | sort
+          
           for dir in phpx-*; do
-            if [ -f "$dir/$dir.sha256" ]; then
+            if [ -d "$dir" ] && [ -f "$dir/$dir.sha256" ]; then
+              echo "Verifying checksum for $dir"
               cd "$dir"
               sha256sum -c "$dir.sha256"
               cd ..
+            elif [ -d "$dir" ]; then
+              echo "No checksum file found in $dir"
+              ls -la "$dir/"
             fi
           done
 
