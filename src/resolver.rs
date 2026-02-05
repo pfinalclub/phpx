@@ -186,8 +186,14 @@ impl ToolResolver {
         // 尝试从 GitHub Releases 解析：owner/repo 格式
         let github_urls = vec![
             format!("https://api.github.com/repos/{}/{}/releases", owner, repo),
-            format!("https://api.github.com/repos/{}/php-{}/releases", owner, repo),
-            format!("https://api.github.com/repos/php-{}/{}/releases", owner, repo),
+            format!(
+                "https://api.github.com/repos/{}/php-{}/releases",
+                owner, repo
+            ),
+            format!(
+                "https://api.github.com/repos/php-{}/{}/releases",
+                owner, repo
+            ),
         ];
 
         for url in github_urls {
@@ -233,7 +239,9 @@ impl ToolResolver {
             ),
             format!(
                 "https://github.com/{}/{}/releases/latest/download/{}.phar",
-                owner, repo, identifier.name.replace('/', "-")
+                owner,
+                repo,
+                identifier.name.replace('/', "-")
             ),
         ];
 

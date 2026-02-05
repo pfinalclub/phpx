@@ -93,9 +93,7 @@ impl Config {
             .as_deref()
             .map(expand_tilde)
             .or(default.default_php_path);
-        let download_mirrors = file
-            .download_mirrors
-            .unwrap_or(default.download_mirrors);
+        let download_mirrors = file.download_mirrors.unwrap_or(default.download_mirrors);
 
         Ok(Self {
             cache_dir,
@@ -109,8 +107,7 @@ impl Config {
 
     pub fn save(&self) -> Result<(), Box<dyn std::error::Error>> {
         // 保存到默认路径；路径字段序列化为字符串
-        let path = Self::default_config_path()
-            .ok_or("Cannot determine config directory")?;
+        let path = Self::default_config_path().ok_or("Cannot determine config directory")?;
         if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent)?;
         }
