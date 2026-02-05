@@ -77,18 +77,28 @@ impl Runner {
             if let Some(version) = self.get_tool_version(&identifier).await? {
                 if let Some(cache_entry) = self.cache_manager.get_entry(&identifier.name, &version)
                 {
-                    let file_path = cache_entry.file_path.clone();
-                    let cache_entry_clone = cache_entry.clone();
-                    if self
-                        .verify_cached_tool(&cache_entry_clone, skip_verify)
-                        .is_ok()
-                    {
-                        tracing::info!("Using cached tool: {}@{}", identifier.name, version);
-                        return self.executor.execute_phar(
-                            &file_path,
-                            args,
-                            effective_php.as_ref(),
-                        );
+                    // 用户指定了具体版本或约束时，不得使用 version 为 "latest" 的缓存，否则会跑错版本
+                    let user_wants_specific_version = identifier.version_constraint.is_some()
+                        || identifier
+                            .version
+                            .as_deref()
+                            .map_or(false, |v| v != "latest");
+                    if user_wants_specific_version && cache_entry.version == "latest" {
+                        // 视为缓存未命中，继续走解析与下载
+                    } else {
+                        let file_path = cache_entry.file_path.clone();
+                        let cache_entry_clone = cache_entry.clone();
+                        if self
+                            .verify_cached_tool(&cache_entry_clone, skip_verify)
+                            .is_ok()
+                        {
+                            tracing::info!("Using cached tool: {}@{}", identifier.name, version);
+                            return self.executor.execute_phar(
+                                &file_path,
+                                args,
+                                effective_php.as_ref(),
+                            );
+                        }
                     }
                 }
             }
