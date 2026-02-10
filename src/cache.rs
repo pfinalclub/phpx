@@ -29,6 +29,12 @@ pub struct CacheEntry {
     pub created_at: u64,
     pub last_accessed: u64,
     pub size: u64,
+    /// Composer 安装目录时对应的 bin 名（如 rector）；phar 条目为 None
+    #[serde(default)]
+    pub bin_name: Option<String>,
+    /// 是否为 Composer 安装目录（删除时需 remove_dir_all）
+    #[serde(default)]
+    pub is_composer: bool,
 }
 
 pub struct CacheManager {
@@ -69,6 +75,59 @@ impl CacheManager {
         file_hash: Option<String>,
         size: u64,
     ) -> Result<()> {
+        self.add_entry_inner(
+            tool_name,
+            version,
+            file_path,
+            download_url,
+            file_hash,
+            size,
+            None,
+            false,
+        )
+    }
+
+    /// 添加 Composer 安装目录缓存条目
+    pub fn add_composer_entry(
+        &mut self,
+        tool_name: String,
+        version: String,
+        dir_path: PathBuf,
+        bin_name: String,
+    ) -> Result<()> {
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+        let entry = CacheEntry {
+            tool_name,
+            version,
+            file_path: dir_path,
+            download_url: String::new(),
+            file_hash: None,
+            created_at: now,
+            last_accessed: now,
+            size: 0,
+            bin_name: Some(bin_name),
+            is_composer: true,
+        };
+        let key = Self::build_key(&entry.tool_name, &entry.version);
+        self.entries.insert(key, entry);
+        self.save_cache()?;
+        Ok(())
+    }
+
+    fn add_entry_inner(
+        &mut self,
+        tool_name: String,
+        version: String,
+        file_path: PathBuf,
+        download_url: String,
+        file_hash: Option<String>,
+        size: u64,
+        bin_name: Option<String>,
+        is_composer: bool,
+    ) -> Result<()> {
         let now = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap()
@@ -83,6 +142,8 @@ impl CacheManager {
             created_at: now,
             last_accessed: now,
             size,
+            bin_name,
+            is_composer,
         };
 
         let key = Self::build_key(&entry.tool_name, &entry.version);
@@ -98,7 +159,11 @@ impl CacheManager {
                 let key = Self::build_key(tool_name, ver);
                 if let Some(entry) = self.entries.remove(&key) {
                     if entry.file_path.exists() {
-                        std::fs::remove_file(&entry.file_path)?;
+                        if entry.is_composer {
+                            std::fs::remove_dir_all(&entry.file_path)?;
+                        } else {
+                            std::fs::remove_file(&entry.file_path)?;
+                        }
                     }
                 }
             }
@@ -113,7 +178,11 @@ impl CacheManager {
                 for key in keys_to_remove {
                     if let Some(entry) = self.entries.remove(&key) {
                         if entry.file_path.exists() {
-                            std::fs::remove_file(&entry.file_path)?;
+                            if entry.is_composer {
+                                std::fs::remove_dir_all(&entry.file_path)?;
+                            } else {
+                                std::fs::remove_file(&entry.file_path)?;
+                            }
                         }
                     }
                 }
@@ -144,7 +213,11 @@ impl CacheManager {
         for key in keys_to_remove {
             if let Some(entry) = self.entries.remove(&key) {
                 if entry.file_path.exists() {
-                    std::fs::remove_file(&entry.file_path)?;
+                    if entry.is_composer {
+                        let _ = std::fs::remove_dir_all(&entry.file_path);
+                    } else {
+                        let _ = std::fs::remove_file(&entry.file_path);
+                    }
                 }
             }
         }

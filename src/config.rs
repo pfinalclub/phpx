@@ -8,6 +8,8 @@ pub struct Config {
     pub max_cache_size: u64,
     pub skip_verify: bool,
     pub default_php_path: Option<PathBuf>,
+    /// Composer 可执行文件路径；未设置时优先使用 phpx 缓存的 composer.phar
+    pub composer_path: Option<PathBuf>,
     pub download_mirrors: Vec<String>,
 }
 
@@ -19,6 +21,7 @@ struct ConfigFile {
     pub max_cache_size: Option<u64>,
     pub skip_verify: Option<bool>,
     pub default_php_path: Option<String>,
+    pub composer_path: Option<String>,
     pub download_mirrors: Option<Vec<String>>,
 }
 
@@ -54,6 +57,7 @@ impl Default for Config {
             max_cache_size: 1024 * 1024 * 1024, // 1GB
             skip_verify: false,
             default_php_path: None,
+            composer_path: None,
             download_mirrors: vec![
                 "https://packagist.org".to_string(),
                 "https://github.com".to_string(),
@@ -93,6 +97,11 @@ impl Config {
             .as_deref()
             .map(expand_tilde)
             .or(default.default_php_path);
+        let composer_path = file
+            .composer_path
+            .as_deref()
+            .map(expand_tilde)
+            .or(default.composer_path);
         let download_mirrors = file.download_mirrors.unwrap_or(default.download_mirrors);
 
         Ok(Self {
@@ -101,6 +110,7 @@ impl Config {
             max_cache_size,
             skip_verify,
             default_php_path,
+            composer_path,
             download_mirrors,
         })
     }
@@ -116,12 +126,17 @@ impl Config {
             .default_php_path
             .as_ref()
             .map(|p| p.to_string_lossy().to_string());
+        let composer_path_str = self
+            .composer_path
+            .as_ref()
+            .map(|p| p.to_string_lossy().to_string());
         let file = ConfigFile {
             cache_dir: Some(cache_dir_str.to_string()),
             cache_ttl: Some(self.cache_ttl),
             max_cache_size: Some(self.max_cache_size),
             skip_verify: Some(self.skip_verify),
             default_php_path: default_php_str,
+            composer_path: composer_path_str,
             download_mirrors: Some(self.download_mirrors.clone()),
         };
         let content = toml::to_string_pretty(&file)?;

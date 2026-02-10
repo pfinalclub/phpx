@@ -19,10 +19,26 @@ pub struct ToolInfo {
     pub hash: Option<String>,
 }
 
+/// 解析结果：要么是 phar（下载即跑），要么是 Composer 包（需在隔离目录安装后跑 vendor/bin）
+#[derive(Debug, Clone)]
+pub enum ResolvedTool {
+    Phar(ToolInfo),
+    Composer(ComposerPackage),
+}
+
+#[derive(Debug, Clone)]
+pub struct ComposerPackage {
+    pub package: String,
+    pub version: String,
+    pub bin_names: Vec<String>,
+}
+
 // Packagist 相关类型
 #[derive(Deserialize)]
 struct PackagistVersionInfo {
     dist: PackagistDist,
+    #[serde(default)]
+    bin: Option<Vec<String>>,
 }
 
 #[derive(Deserialize)]
@@ -98,15 +114,22 @@ impl ToolResolver {
         }
     }
 
-    pub async fn resolve_tool(&self, identifier: &ToolIdentifier) -> Result<ToolInfo> {
-        // 首先尝试从 Packagist 解析
-        if let Ok(tool_info) = self.resolve_from_packagist(identifier).await {
-            return Ok(tool_info);
+    pub async fn resolve_tool(&self, identifier: &ToolIdentifier) -> Result<ResolvedTool> {
+        // 内置 composer：从 getcomposer.org 下载 composer.phar
+        if identifier.name == "composer" {
+            return Ok(ResolvedTool::Phar(
+                self.resolve_builtin_composer(identifier),
+            ));
+        }
+
+        // 首先尝试从 Packagist 解析（path → Phar，zip → Composer）
+        if let Ok(resolved) = self.resolve_from_packagist(identifier).await {
+            return Ok(resolved);
         }
 
         // 然后尝试从 GitHub Releases 解析
         if let Ok(tool_info) = self.resolve_from_github(identifier).await {
-            return Ok(tool_info);
+            return Ok(ResolvedTool::Phar(tool_info));
         }
 
         // 仅当用户未指定版本约束且未指定具体版本（或明确 @latest）时，才尝试直接 URL（latest）
@@ -118,23 +141,31 @@ impl ToolResolver {
                 .unwrap_or(true);
         if use_direct_url {
             if let Ok(tool_info) = self.resolve_from_direct_url(identifier).await {
-                return Ok(tool_info);
+                return Ok(ResolvedTool::Phar(tool_info));
             }
         }
 
         Err(Error::ToolNotFound(identifier.name.clone()))
     }
 
-    async fn resolve_from_packagist(&self, identifier: &ToolIdentifier) -> Result<ToolInfo> {
-        let url = format!("https://packagist.org/packages/{}.json", identifier.name);
-
-        let client = reqwest::Client::new();
-        let response = client.get(&url).send().await?;
-
-        if !response.status().is_success() {
-            return Err(Error::ToolNotFound(identifier.name.clone()));
+    /// 内置 composer 工具：getcomposer.org 的 composer.phar
+    fn resolve_builtin_composer(&self, identifier: &ToolIdentifier) -> ToolInfo {
+        let version = identifier
+            .version
+            .as_deref()
+            .filter(|v| *v != "latest")
+            .unwrap_or("latest");
+        let url = "https://getcomposer.org/download/latest-stable/composer.phar";
+        ToolInfo {
+            name: "composer".to_string(),
+            version: version.to_string(),
+            download_url: url.to_string(),
+            signature_url: None,
+            hash: None,
         }
+    }
 
+    async fn resolve_from_packagist(&self, identifier: &ToolIdentifier) -> Result<ResolvedTool> {
         #[derive(Deserialize)]
         struct PackagistResponse {
             package: Package,
@@ -145,39 +176,81 @@ impl ToolResolver {
             versions: HashMap<String, PackagistVersionInfo>,
         }
 
-        let packagist_response: PackagistResponse = response.json().await?;
-
-        // 找到合适的版本
-        let version =
-            self.find_matching_version(&packagist_response.package.versions, identifier)?;
-
-        let version_info = &packagist_response.package.versions[&version];
-        let dist = &version_info.dist;
-
-        // 支持 path 类型（单文件，多为 .phar）；zip 为源码包，无法直接作为 phar 运行，回退到 GitHub 等源
-        let download_url = match dist.dist_type.as_str() {
-            "path" => dist.url.clone(),
-            "zip" => {
-                return Err(Error::ToolNotFound(format!(
-                    "Packagist 仅提供 zip 源码包，无法直接运行；将尝试 GitHub 等源解析 {}",
-                    identifier.name
-                )));
-            }
-            other => {
-                return Err(Error::ToolNotFound(format!(
-                    "Packagist 分发类型 \"{}\" 暂不支持，将尝试 GitHub 等源",
-                    other
-                )));
-            }
+        // 单段名（如 rector）时先试 vendor/package（rector/rector），避免 /packages/rector.json 返回 HTML 重定向页
+        let names_to_try: Vec<String> = if identifier.name.contains('/') {
+            vec![identifier.name.clone()]
+        } else {
+            vec![
+                format!("{}/{}", identifier.name, identifier.name),
+                identifier.name.clone(),
+            ]
         };
 
-        Ok(ToolInfo {
-            name: identifier.name.clone(),
-            version,
-            download_url,
-            signature_url: None,
-            hash: None,
-        })
+        let client = reqwest::Client::new();
+        for packagist_name in names_to_try {
+            let url = format!("https://packagist.org/packages/{}.json", packagist_name);
+            let response = client.get(&url).send().await?;
+            if !response.status().is_success() {
+                continue;
+            }
+
+            // 响应可能为 HTML（如单段名重定向页），解析失败则尝试下一个包名
+            let packagist_response: PackagistResponse = match response.json().await {
+                Ok(p) => p,
+                Err(_) => continue,
+            };
+
+            let version =
+                match self.find_matching_version(&packagist_response.package.versions, identifier) {
+                    Ok(v) => v,
+                    Err(_) => continue,
+                };
+
+            let version_info = &packagist_response.package.versions[&version];
+            let dist = &version_info.dist;
+
+            return match dist.dist_type.as_str() {
+                "path" => Ok(ResolvedTool::Phar(ToolInfo {
+                    name: identifier.name.clone(),
+                    version: version.clone(),
+                    download_url: dist.url.clone(),
+                    signature_url: None,
+                    hash: None,
+                })),
+                "zip" => {
+                    let bin_names = version_info
+                        .bin
+                        .clone()
+                        .filter(|b| !b.is_empty())
+                        .unwrap_or_else(|| {
+                            let default = packagist_name
+                                .split('/')
+                                .last()
+                                .unwrap_or("tool")
+                                .to_string();
+                            vec![default]
+                        });
+                    // 标准化 bin：Packagist 可能为 "bin/rector"，取最后一段
+                    let bin_names: Vec<String> = bin_names
+                        .into_iter()
+                        .map(|b| {
+                            b.split('/')
+                                .last()
+                                .map(String::from)
+                                .unwrap_or(b)
+                        })
+                        .collect();
+                    Ok(ResolvedTool::Composer(ComposerPackage {
+                        package: packagist_name,
+                        version,
+                        bin_names,
+                    }))
+                }
+                _ => continue,
+            };
+        }
+
+        Err(Error::ToolNotFound(identifier.name.clone()))
     }
 
     /// 将工具名解析为 GitHub (owner, repo)。支持 vendor/package 如 laravel/pint -> (laravel, pint)

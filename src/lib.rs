@@ -1,5 +1,6 @@
 pub mod cache;
 pub mod cli;
+pub mod composer;
 pub mod config;
 pub mod download;
 pub mod error;
@@ -19,4 +20,6 @@ pub struct ToolOptions {
     pub skip_verify: bool,
     pub php: Option<PathBuf>,
     pub no_local: bool,
+    /// 向子工具追加 --no-interaction，避免交互式提示（如 rector 询问是否生成配置）
+    pub no_interaction: bool,
 }

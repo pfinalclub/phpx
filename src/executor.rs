@@ -95,6 +95,54 @@ impl Executor {
         }
     }
 
+    /// 执行 PHP 脚本（如 vendor/bin/rector），与 execute_phar 共用 PHP 选择与环境
+    pub fn execute_script(
+        &self,
+        script_path: &Path,
+        args: &[String],
+        php_path: Option<&PathBuf>,
+    ) -> Result<()> {
+        let php_binary = self.find_php_binary(php_path)?;
+
+        if php_path.is_none() {
+            if let Some(constraint) = self.detect_project_php_version() {
+                if let Some(actual) = Self::get_php_version(&php_binary) {
+                    if !Self::php_version_matches_constraint(&actual, &constraint) {
+                        tracing::warn!(
+                            "Project composer.json requires PHP {}, but current PHP is {}",
+                            constraint,
+                            actual
+                        );
+                    }
+                }
+            }
+        }
+
+        tracing::info!(
+            "Executing {} with PHP: {:?}",
+            script_path.display(),
+            php_binary
+        );
+
+        let mut command = Command::new(&php_binary);
+        command.arg(script_path);
+        command.args(args);
+
+        command.envs(std::env::vars());
+        command.stdin(Stdio::inherit());
+        command.stdout(Stdio::inherit());
+        command.stderr(Stdio::inherit());
+
+        let status = command.status()?;
+
+        if status.success() {
+            Ok(())
+        } else {
+            let code = status.code().unwrap_or(1);
+            Err(Error::ExecutionFailed(code))
+        }
+    }
+
     fn find_php_binary(&self, custom_path: Option<&PathBuf>) -> Result<PathBuf> {
         if let Some(path) = custom_path {
             if path.exists() {

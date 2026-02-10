@@ -1,9 +1,10 @@
 use crate::cache::CacheManager;
+use crate::composer;
 use crate::config::Config;
 use crate::download::Downloader;
 use crate::error::{Error, Result};
 use crate::executor::Executor;
-use crate::resolver::{ToolIdentifier, ToolResolver};
+use crate::resolver::{ResolvedTool, ToolIdentifier, ToolResolver};
 use crate::security::SecurityManager;
 use std::path::PathBuf;
 
@@ -46,8 +47,19 @@ impl Runner {
         skip_verify: bool,
         php_path: Option<&PathBuf>,
         no_local: bool,
+        no_interaction: bool,
     ) -> Result<()> {
         tracing::info!("Running tool: {}", tool_identifier);
+
+        // 需要向子工具追加 --no-interaction 时，在参数末尾加上
+        let effective_args: Vec<String> = if no_interaction {
+            let mut a = args.to_vec();
+            a.push("--no-interaction".to_string());
+            a
+        } else {
+            args.to_vec()
+        };
+        let effective_args: &[String] = &effective_args;
 
         // 命令行 --php 优先，否则使用配置中的 default_php_path（克隆避免长期借用 self）
         let effective_php = php_path
@@ -63,7 +75,7 @@ impl Runner {
                 tracing::info!("Found local tool at: {:?}", local_path);
                 return self
                     .executor
-                    .execute_phar(&local_path, args, effective_php.as_ref());
+                    .execute_phar(&local_path, effective_args, effective_php.as_ref());
             }
         }
 
@@ -75,8 +87,11 @@ impl Runner {
         // 查找缓存中的工具
         if !no_cache {
             if let Some(version) = self.get_tool_version(&identifier).await? {
-                if let Some(cache_entry) = self.cache_manager.get_entry(&identifier.name, &version)
-                {
+                let entry_owned = self
+                    .cache_manager
+                    .get_entry(&identifier.name, &version)
+                    .cloned();
+                if let Some(cache_entry) = entry_owned {
                     // 用户指定了具体版本或约束时，不得使用 version 为 "latest" 的缓存，否则会跑错版本
                     let user_wants_specific_version = identifier.version_constraint.is_some()
                         || identifier
@@ -85,17 +100,23 @@ impl Runner {
                             .map_or(false, |v| v != "latest");
                     if user_wants_specific_version && cache_entry.version == "latest" {
                         // 视为缓存未命中，继续走解析与下载
-                    } else {
-                        let file_path = cache_entry.file_path.clone();
-                        let cache_entry_clone = cache_entry.clone();
-                        if self
-                            .verify_cached_tool(&cache_entry_clone, skip_verify)
-                            .is_ok()
-                        {
-                            tracing::info!("Using cached tool: {}@{}", identifier.name, version);
+                    } else if self.verify_cached_tool(&cache_entry, skip_verify).is_ok() {
+                        tracing::info!("Using cached tool: {}@{}", identifier.name, version);
+                        if cache_entry.is_composer {
+                            let bin_path = cache_entry
+                                .file_path
+                                .join("vendor")
+                                .join("bin")
+                                .join(cache_entry.bin_name.as_deref().unwrap_or("tool"));
+                            return self.executor.execute_script(
+                                &bin_path,
+                                effective_args,
+                                effective_php.as_ref(),
+                            );
+                        } else {
                             return self.executor.execute_phar(
-                                &file_path,
-                                args,
+                                &cache_entry.file_path,
+                                effective_args,
                                 effective_php.as_ref(),
                             );
                         }
@@ -104,14 +125,28 @@ impl Runner {
             }
         }
 
-        // 下载并执行工具
-        let tool_info = self.resolver.resolve_tool(&identifier).await?;
-        let downloaded_path = self
-            .download_and_cache_tool(&tool_info, skip_verify)
-            .await?;
-
-        self.executor
-            .execute_phar(&downloaded_path, args, effective_php.as_ref())
+        // 解析并执行：Phar 下载后执行，Composer 在隔离目录安装后执行 vendor/bin
+        let resolved = self.resolver.resolve_tool(&identifier).await?;
+        match resolved {
+            ResolvedTool::Phar(tool_info) => {
+                let downloaded_path = self
+                    .download_and_cache_tool(&tool_info, skip_verify)
+                    .await?;
+                self.executor
+                    .execute_phar(&downloaded_path, effective_args, effective_php.as_ref())
+            }
+            ResolvedTool::Composer(composer_pkg) => {
+                let (_dir, bin_path) = composer::ensure_composer_installed(
+                    &composer_pkg,
+                    &self.config.cache_dir,
+                    &mut self.cache_manager,
+                    &self.config,
+                    effective_php.as_ref(),
+                )?;
+                self.executor
+                    .execute_script(&bin_path, effective_args, effective_php.as_ref())
+            }
+        }
     }
 
     fn find_local_tool(&self, tool_name: &str) -> Option<PathBuf> {
@@ -141,9 +176,13 @@ impl Runner {
             return Ok(Some(version.clone()));
         }
 
-        // 如果没有指定版本，尝试解析最新版本
-        let tool_info = self.resolver.resolve_tool(identifier).await.ok();
-        tool_info.map(|info| Ok(info.version)).transpose()
+        // 如果没有指定版本，尝试解析得到版本号（Phar 或 Composer 均可）
+        let resolved = self.resolver.resolve_tool(identifier).await.ok();
+        match resolved {
+            Some(ResolvedTool::Phar(t)) => Ok(Some(t.version)),
+            Some(ResolvedTool::Composer(c)) => Ok(Some(c.version)),
+            None => Ok(None),
+        }
     }
 
     fn verify_cached_tool(
@@ -155,18 +194,33 @@ impl Runner {
             return Ok(());
         }
 
-        // 检查文件是否存在
         if !cache_entry.file_path.exists() {
-            return Err(Error::Cache("Cached file not found".to_string()));
+            return Err(Error::Cache(
+                "Cached file or directory not found".to_string(),
+            ));
         }
 
-        // 检查文件大小
+        if cache_entry.is_composer {
+            let bin_name = cache_entry.bin_name.as_deref().unwrap_or("tool");
+            let vendor_bin = cache_entry
+                .file_path
+                .join("vendor")
+                .join("bin")
+                .join(bin_name);
+            if !vendor_bin.exists() {
+                return Err(Error::Cache(format!(
+                    "Cached composer tool vendor/bin/{} not found",
+                    bin_name
+                )));
+            }
+            return Ok(());
+        }
+
         let metadata = std::fs::metadata(&cache_entry.file_path)?;
         if metadata.len() != cache_entry.size {
             return Err(Error::Cache("Cached file size mismatch".to_string()));
         }
 
-        // 验证哈希（如果有）
         if let Some(expected_hash) = &cache_entry.file_hash {
             if !expected_hash.is_empty() {
                 self.security_manager
@@ -339,7 +393,133 @@ impl Runner {
             options.skip_verify,
             options.php.as_ref(),
             options.no_local,
+            options.no_interaction,
         )
         .await
+    }
+
+    /// 为「无缝切版本」在 override 目录安装指定库包（仅 Packagist zip 包），返回安装目录。
+    /// 若解析结果为 Phar 则返回错误，提示用 phpx &lt;tool&gt; 运行。
+    pub async fn install_override_package(
+        &mut self,
+        package_spec: &str,
+        php_path: Option<&PathBuf>,
+    ) -> Result<PathBuf> {
+        let identifier = self.resolver.parse_identifier(package_spec)?;
+        let resolved = self.resolver.resolve_tool(&identifier).await?;
+        match resolved {
+            ResolvedTool::Composer(pkg) => composer::ensure_override_installed(
+                &pkg.package,
+                &pkg.version,
+                &self.config.cache_dir,
+                &mut self.cache_manager,
+                &self.config,
+                php_path,
+            ),
+            ResolvedTool::Phar(_) => Err(Error::Execution(
+                "phpx add only supports library packages (Packagist zip). \
+                 For phar-based tools use: phpx <tool>"
+                    .to_string(),
+            )),
+        }
+    }
+
+    /// 列出 override 目录下已安装的库包，返回 (package, version, path)。
+    pub fn list_override_packages(&self) -> Result<Vec<(String, String, PathBuf)>> {
+        let override_dir = self.config.cache_dir.join("override");
+        if !override_dir.exists() {
+            return Ok(vec![]);
+        }
+        let mut out = Vec::new();
+        for entry in std::fs::read_dir(&override_dir)? {
+            let entry = entry?;
+            let path = entry.path();
+            if !path.is_dir() {
+                continue;
+            }
+            let name = entry.file_name().to_string_lossy().into_owned();
+            // 目录名格式: vendor-package-version，如 guzzlehttp-guzzle-7.10.0
+            let parts: Vec<&str> = name.split('-').collect();
+            if parts.len() < 2 {
+                out.push((name.clone(), String::new(), path));
+                continue;
+            }
+            let (package, version) = if parts.last().map_or(false, |s| {
+                s.chars().next().map_or(false, |c| c.is_ascii_digit())
+            }) {
+                let version = parts.last().unwrap().to_string();
+                let slug = parts[..parts.len() - 1].join("-");
+                let package = slug.replacen('-', "/", 1);
+                (package, version)
+            } else {
+                (name.replacen('-', "/", 1), String::new())
+            };
+            out.push((package, version, path));
+        }
+        out.sort_by(|a, b| a.0.cmp(&b.0).then(a.1.cmp(&b.1)));
+        Ok(out)
+    }
+
+    /// 删除 override 目录下已安装的库包。package 如 guzzlehttp/guzzle；version 可选，不指定则删除该包所有版本。
+    pub fn remove_override_package(
+        &self,
+        package: &str,
+        version: Option<&str>,
+    ) -> Result<Vec<PathBuf>> {
+        let slug = package.replace('/', "-");
+        let override_dir = self.config.cache_dir.join("override");
+        if !override_dir.exists() {
+            return Ok(vec![]);
+        }
+        let mut removed = Vec::new();
+        let entries = std::fs::read_dir(&override_dir)?;
+        for entry in entries {
+            let entry = entry?;
+            let name = entry.file_name();
+            let name_str = name.to_string_lossy();
+            let prefix = format!("{}-", slug);
+            if !name_str.starts_with(&prefix) {
+                continue;
+            }
+            let rest = name_str.strip_prefix(&prefix).unwrap_or("");
+            if let Some(ver) = version {
+                if rest != ver {
+                    continue;
+                }
+            }
+            let path = entry.path();
+            if path.is_dir() {
+                std::fs::remove_dir_all(&path)?;
+                removed.push(path);
+            }
+        }
+        Ok(removed)
+    }
+
+    /// 在指定路径生成 override_autoload.php：先加载 override 目录的 autoload，再加载项目 vendor。
+    pub fn write_override_bootstrap(
+        override_install_dir: &PathBuf,
+        bootstrap_path: &PathBuf,
+    ) -> Result<()> {
+        let override_autoload = override_install_dir
+            .canonicalize()
+            .unwrap_or_else(|_| override_install_dir.clone())
+            .join("vendor")
+            .join("autoload.php");
+        let path_str = override_autoload.display().to_string();
+        let escaped = path_str.replace('\\', "\\\\").replace('\'', "\\'");
+        let content = format!(
+            r#"<?php
+// Generated by phpx add --bootstrap. Load override vendor first, then project vendor.
+require '{}';
+require __DIR__ . '/vendor/autoload.php';
+"#,
+            escaped
+        );
+        if let Some(parent) = bootstrap_path.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+        std::fs::write(bootstrap_path, content)?;
+        Ok(())
     }
 }

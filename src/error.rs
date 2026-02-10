@@ -33,6 +33,14 @@ pub enum Error {
     #[error("Invalid tool identifier: {0}")]
     InvalidToolIdentifier(String),
 
+    #[error(
+        "Composer not found. Run `phpx composer` once or install Composer / set composer_path"
+    )]
+    ComposerNotFound,
+
+    #[error("Composer install failed: {0}")]
+    ComposerInstallFailed(String),
+
     #[error("Unsupported platform: {0}")]
     UnsupportedPlatform(String),
 
